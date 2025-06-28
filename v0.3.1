@@ -1,0 +1,2132 @@
+import customtkinter as ct
+from tkinter import StringVar, messagebox, filedialog
+from PIL import Image
+import os
+import sys
+import threading
+from datetime import datetime
+import time
+import json
+import logging
+from typing import Dict, List, Optional
+import pandas as pd
+import re
+import math
+
+# Configuración de la aplicación
+ct.set_appearance_mode("dark")
+ct.set_default_color_theme("dark-blue")
+
+# Constantes de versión
+VERSION_ACTUAL = "3.0.0"
+FECHA_COMPILACION = "2025-01-28"
+
+# Configuración de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Importar módulos de la nueva arquitectura
+from config.database import DatabaseManager
+from models.usuario import Usuario
+from models.codigo_item import CodigoItem
+from models.captura import Captura
+from services.updater import UpdaterService
+from utils.logger import AppLogger
+from utils.validators import Validators
+
+class EscanerApp:
+    def __init__(self):
+        self.root = ct.CTk()
+        self.root.title("Escáner de Códigos V&C v3.0.0")
+        self.root.geometry("1000x800")
+        self.root.resizable(True, True)
+        
+        # Inicializar componentes
+        self.db_manager = None
+        self.logger = None
+        self.usuario_model = None
+        self.codigo_model = None
+        self.captura_model = None
+        self.updater = None
+        
+        # Variables de estado
+        self.usuario_actual = None
+        self.rol_actual = None
+        self.config_data = {}
+        
+        # Inicializar aplicación
+        self.inicializar_aplicacion()
+    
+    def inicializar_aplicacion(self):
+        """Inicializa todos los componentes de la aplicación"""
+        try:
+            # Inicializar base de datos
+            self.db_manager = DatabaseManager()
+            
+            # Crear tablas si no existen
+            self.db_manager.create_tables()
+            
+            # Insertar datos por defecto (incluye usuario admin)
+            self.db_manager.insert_default_data()
+            
+            # Inicializar logger
+            self.logger = AppLogger("EscanerApp")
+            
+            # Inicializar modelos
+            self.usuario_model = Usuario(self.db_manager)
+            self.codigo_model = CodigoItem(self.db_manager)
+            self.captura_model = Captura(self.db_manager)
+            
+            # Inicializar updater
+            self.updater = UpdaterService()  # Solo URL base opcional
+            
+            # Cargar configuración
+            self.cargar_configuracion()
+            
+            # Mostrar ventana de login
+            self.mostrar_login()
+            
+            self.logger.info("Aplicación inicializada correctamente")
+            
+        except Exception as e:
+            self.logger.error(f"Error inicializando aplicación: {str(e)}")
+            messagebox.showerror("Error", f"Error al inicializar la aplicación: {str(e)}")
+            self.root.destroy()
+    
+    def cargar_configuracion(self):
+        """Carga la configuración desde la base de datos"""
+        try:
+            result = self.db_manager.execute_query(
+                "SELECT clave, valor FROM configuracion"
+            )
+            
+            for row in result:
+                self.config_data[row['clave']] = row['valor']
+                
+        except Exception as e:
+            self.logger.error(f"Error cargando configuración: {str(e)}")
+    
+    def mostrar_login(self):
+        """Muestra la ventana de login"""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        
+        self.login_window = LoginWindow(self.root, self.usuario_model, self.logger, self.on_login_success)
+    
+    def on_login_success(self, usuario: str, rol: str):
+        """Callback cuando el login es exitoso"""
+        self.usuario_actual = usuario
+        self.rol_actual = rol
+        
+        self.logger.log_user_action(usuario, "Login exitoso")
+        
+        # Verificar actualizaciones automáticamente
+        # if self.updater.auto_update_enabled(self.db_manager):
+        #     threading.Thread(target=self.verificar_actualizaciones, daemon=True).start()
+        
+        # Mostrar ventana principal
+        self.mostrar_ventana_principal()
+    
+    def verificar_actualizaciones(self):
+        """Verifica actualizaciones disponibles"""
+        try:
+            update_info = self.updater.verificar_actualizacion()
+            if update_info:
+                self.root.after(0, lambda: self.mostrar_dialogo_actualizacion(update_info))
+        except Exception as e:
+            self.logger.error(f"Error verificando actualizaciones: {str(e)}")
+    
+    def mostrar_dialogo_actualizacion(self, update_info: Dict):
+        """Muestra diálogo de actualización disponible"""
+        respuesta = messagebox.askyesno(
+            "Actualización Disponible",
+            f"Hay una nueva versión disponible: {update_info['version']}\n\n"
+            f"Descripción: {update_info['descripcion']}\n\n"
+            "¿Desea actualizar ahora?"
+        )
+        
+        if respuesta:
+            self.instalar_actualizacion(update_info)
+    
+    def instalar_actualizacion(self, update_info: Dict):
+        """Instala la actualización"""
+        try:
+            # Descargar actualización
+            file_path = self.updater.download_update(update_info['url_descarga'], update_info['version'])
+            
+            if file_path:
+                # Instalar actualización
+                if self.updater.install_update(file_path):
+                    messagebox.showinfo("Éxito", "Actualización instalada. La aplicación se reiniciará.")
+                    self.updater.restart_application()
+                else:
+                    messagebox.showerror("Error", "Error al instalar la actualización.")
+            else:
+                messagebox.showerror("Error", "Error al descargar la actualización.")
+                
+        except Exception as e:
+            self.logger.error(f"Error instalando actualización: {str(e)}")
+            messagebox.showerror("Error", f"Error al instalar actualización: {str(e)}")
+    
+    def mostrar_ventana_principal(self):
+        """Muestra la ventana principal de la aplicación"""
+        for widget in self.root.winfo_children():
+            widget.destroy()
+        
+        self.main_window = MainWindow(
+            self.root, 
+            self.usuario_actual, 
+            self.rol_actual,
+            self.codigo_model,
+            self.captura_model,
+            self.updater,
+            self.logger,
+            self.config_data,
+            self.usuario_model,
+            self.db_manager
+        )
+    
+    def ejecutar(self):
+        """Ejecuta la aplicación"""
+        self.root.mainloop()
+
+class LoginWindow:
+    def __init__(self, master, usuario_model, logger, on_success):
+        self.master = master
+        self.usuario_model = usuario_model
+        self.logger = logger
+        self.on_success = on_success
+        self.attempts_left = 3
+        
+        self.crear_interfaz()
+    
+    def crear_interfaz(self):
+        """Crea la interfaz de login"""
+        self.frame = ct.CTkFrame(self.master)
+        self.frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Título
+        self.label_title = ct.CTkLabel(
+            self.frame, 
+            text="Iniciar sesión", 
+            font=("Segoe UI", 18, "bold")
+        )
+        self.label_title.pack(pady=(0, 16))
+        
+        # Variables
+        self.user_var = StringVar()
+        self.pass_var = StringVar()
+        
+        # Usuario
+        self.label_user = ct.CTkLabel(self.frame, text="Usuario:")
+        self.label_user.pack(anchor="w")
+        self.entry_user = ct.CTkEntry(self.frame, textvariable=self.user_var)
+        self.entry_user.pack(fill="x", pady=(0, 8))
+        
+        # Contraseña
+        self.label_pass = ct.CTkLabel(self.frame, text="Contraseña:")
+        self.label_pass.pack(anchor="w")
+        
+        # Frame horizontal para contraseña y botón
+        self.pass_row = ct.CTkFrame(self.frame)
+        self.pass_row.pack(fill="x", pady=(0, 8))
+        
+        self.entry_pass = ct.CTkEntry(
+            self.pass_row, 
+            textvariable=self.pass_var, 
+            show="*"
+        )
+        self.entry_pass.pack(side="left", fill="x", expand=True)
+        
+        self.login_button = ct.CTkButton(
+            self.pass_row, 
+            text="Entrar", 
+            command=self.try_login, 
+            width=100
+        )
+        self.login_button.pack(side="right", padx=(8, 0))
+        
+        # Label de error
+        self.error_label = ct.CTkLabel(
+            self.frame, 
+            text="", 
+            text_color="#FF3333", 
+            font=("Segoe UI", 11, "bold")
+        )
+        self.error_label.pack(pady=(0, 8))
+        
+        # Eventos
+        self.entry_user.bind("<Return>", lambda e: self.entry_pass.focus_set())
+        self.entry_pass.bind("<Return>", lambda e: self.try_login())
+        self.entry_user.focus_set()
+    
+    def try_login(self):
+        """Intenta hacer login"""
+        usuario = self.user_var.get().strip()
+        contrasena = self.pass_var.get().strip()
+        
+        # Validar entrada
+        if not usuario or not contrasena:
+            self.error_label.configure(text="Ingrese usuario y contraseña.")
+            return
+        
+        # Validar formato
+        es_valido_usuario, _ = Validators.validar_usuario(usuario)
+        es_valido_pass, _ = Validators.validar_contraseña(contrasena)
+        
+        if not es_valido_usuario or not es_valido_pass:
+            self.error_label.configure(text="Formato de usuario o contraseña inválido.")
+            return
+        
+        # Deshabilitar botón durante verificación
+        self.login_button.configure(state="disabled", text="Verificando...")
+        
+        # Ejecutar verificación en hilo separado
+        threading.Thread(target=self._verificar_credenciales, args=(usuario, contrasena), daemon=True).start()
+    
+    def _verificar_credenciales(self, usuario, contrasena):
+        """Verifica las credenciales en la base de datos"""
+        try:
+            resultado = self.usuario_model.autenticar_usuario(usuario, contrasena)
+            
+            if resultado:
+                self.master.after(0, lambda: self._login_exitoso(usuario, resultado['rol']))
+            else:
+                self.attempts_left -= 1
+                if self.attempts_left > 0:
+                    self.master.after(0, lambda: self._mostrar_error_intentos())
+                else:
+                    self.master.after(0, lambda: self._bloquear_login())
+                    
+        except Exception as e:
+            self.logger.error(f"Error en autenticación: {str(e)}")
+            self.master.after(0, lambda error=str(e): self._mostrar_error_conexion(error))
+        finally:
+            self.master.after(0, lambda: self._restaurar_boton())
+    
+    def _login_exitoso(self, usuario, rol):
+        """Maneja el login exitoso"""
+        self.on_success(usuario, rol)
+    
+    def _mostrar_error_intentos(self):
+        """Muestra error con intentos restantes"""
+        self.error_label.configure(
+            text=f"Usuario o contraseña incorrectos. Intentos restantes: {self.attempts_left}"
+        )
+    
+    def _bloquear_login(self):
+        """Bloquea el login por demasiados intentos"""
+        self.error_label.configure(
+            text="Demasiados intentos fallidos. Reinicie la aplicación."
+        )
+        self.login_button.configure(state="disabled", text="Bloqueado")
+    
+    def _mostrar_error_conexion(self, error):
+        """Muestra error de conexión"""
+        self.error_label.configure(text=f"Error de conexión: {error}")
+    
+    def _restaurar_boton(self):
+        """Restaura el botón de login"""
+        self.login_button.configure(state="normal", text="Entrar")
+
+class MainWindow:
+    def __init__(self, master, usuario, rol, codigo_model, captura_model, updater, logger, config_data, usuario_model, db_manager):
+        self.master = master
+        self.usuario = usuario
+        self.rol = rol
+        self.codigo_model = codigo_model
+        self.captura_model = captura_model
+        self.updater = updater
+        self.logger = logger
+        self.config_data = config_data
+        self.usuario_model = usuario_model
+        self.db_manager = db_manager
+        
+        self.crear_interfaz()
+        self.cargar_estadisticas()
+    
+    def crear_interfaz(self):
+        """Crea la interfaz principal"""
+        # Crear tabview
+        self.tabview = ct.CTkTabview(self.master, fg_color="#000000")
+        self.tabview.pack(fill="both", expand=True, padx=40, pady=20)
+        
+        # Pestaña Escáner (todos los usuarios)
+        self.tabview.add("Escáner")
+        self._configurar_tab_escaner(self.tabview.tab("Escáner"))
+        
+        # Pestaña Captura (solo rol captura y admin)
+        if self.rol in ["captura", "admin"]:
+            self.tabview.add("Captura de Datos")
+            self._configurar_tab_captura(self.tabview.tab("Captura de Datos"))
+        
+        # Pestaña Configuración (solo admin)
+        if self.rol == "admin":
+            self.tabview.add("Configuración")
+            self._configurar_tab_configuracion(self.tabview.tab("Configuración"))
+        
+        # Pestaña Actualizaciones (todos los usuarios)
+        self.tabview.add("Actualizaciones")
+        self._configurar_tab_actualizaciones(self.tabview.tab("Actualizaciones"))
+        
+        # Establecer pestaña inicial
+        self.tabview.set("Escáner")
+    
+    def _configurar_tab_escaner(self, parent):
+        """Configura la pestaña del escáner"""
+        # Frame principal
+        main_frame = ct.CTkFrame(parent, fg_color="#000000")
+        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        
+        # Columna izquierda
+        left_col = ct.CTkFrame(main_frame, fg_color="#000000")
+        left_col.pack(side="left", fill="y", expand=True, padx=(0, 40))
+        
+        # Logo y título
+        self._crear_header(left_col)
+        
+        # Entrada de código
+        self.codigo_var = StringVar()
+        self.codigo_entry = ct.CTkEntry(
+            left_col, 
+            textvariable=self.codigo_var,
+            font=("Segoe UI", 15),
+            width=400,
+            height=36,
+            corner_radius=12,
+            border_width=2,
+            border_color="#00FFAA",
+            fg_color="#000000",
+            text_color="#00FFAA",
+            placeholder_text="Código de barras"
+        )
+        self.codigo_entry.pack(pady=(0, 18))
+        self.codigo_entry.bind("<Return>", lambda e: self.buscar_codigo())
+        
+        # Botones
+        self._crear_botones_escaner(left_col)
+        
+        # Resultados
+        self._crear_resultados_escaner(left_col)
+        
+        # Columna derecha
+        right_col = ct.CTkFrame(main_frame, fg_color="#000000")
+        right_col.pack(side="right", fill="y", expand=True, padx=(40, 0))
+        
+        # Estadísticas
+        self._crear_estadisticas_escaner(right_col)
+    
+    def _crear_header(self, parent):
+        """Crea el header con logo y título"""
+        # Logo
+        logo_path = os.path.join(os.path.dirname(__file__), 'resources', 'Logo (2).png')
+        if os.path.exists(logo_path):
+            try:
+                logo_img = ct.CTkImage(
+                    light_image=Image.open(logo_path), 
+                    dark_image=Image.open(logo_path), 
+                    size=(90, 90)
+                )
+                logo_label = ct.CTkLabel(parent, image=logo_img, text="", fg_color="#000000")
+                logo_label.pack(pady=(10, 10))
+            except Exception as e:
+                self.logger.error(f"Error cargando logo: {str(e)}")
+                ct.CTkLabel(
+                    parent, 
+                    text="V&C", 
+                    font=("Segoe UI", 28, "bold"), 
+                    text_color="#00FFAA", 
+                    fg_color="#000000"
+                ).pack(pady=(10, 10))
+        else:
+            ct.CTkLabel(
+                parent, 
+                text="V&C", 
+                font=("Segoe UI", 28, "bold"), 
+                text_color="#00FFAA", 
+                fg_color="#000000"
+            ).pack(pady=(10, 10))
+        
+        # Título
+        ct.CTkLabel(
+            parent, 
+            text="Escáner de Códigos", 
+            font=("Segoe UI", 22, "bold"), 
+            text_color="#00FFAA", 
+            fg_color="#000000"
+        ).pack(pady=(0, 8))
+    
+    def _crear_botones_escaner(self, parent):
+        """Crea los botones del escáner"""
+        botones_frame = ct.CTkFrame(parent, fg_color="#000000")
+        botones_frame.pack(pady=(0, 10))
+        # Botón buscar
+        self.search_button = ct.CTkButton(
+            botones_frame,
+            text="Buscar",
+            font=("Segoe UI", 14, "bold"),
+            fg_color="#000000",
+            hover_color="#111111",
+            border_width=2,
+            border_color="#00FFAA",
+            text_color="#00FFAA",
+            corner_radius=12,
+            width=160,
+            height=36,
+            command=self.buscar_codigo
+        )
+        self.search_button.pack(side="left", padx=(0, 8))
+        # Eliminar el botón limpiar BD para todos los usuarios
+    
+    def _crear_resultados_escaner(self, parent):
+        """Crea los labels de resultados"""
+        self.clave_valor = ct.CTkLabel(
+            parent, 
+            text="ITEM: ", 
+            font=("Segoe UI", 13, "bold"), 
+            text_color="#00FFAA", 
+            fg_color="#000000"
+        )
+        self.clave_valor.pack(pady=(10, 0))
+        
+        self.resultado_valor = ct.CTkLabel(
+            parent, 
+            text="RESULTADO: ", 
+            font=("Segoe UI", 12), 
+            text_color="#00FFAA", 
+            fg_color="#000000", 
+            wraplength=500
+        )
+        self.resultado_valor.pack(pady=(0, 0))
+        
+        self.nom_valor = ct.CTkLabel(
+            parent, 
+            text="NOM: ", 
+            font=("Segoe UI", 12, "italic"), 
+            text_color="#55DDFF", 
+            fg_color="#000000", 
+            wraplength=500
+        )
+        self.nom_valor.pack(pady=(0, 10))
+    
+    def _crear_estadisticas_escaner(self, parent):
+        """Crea las estadísticas del escáner"""
+        # Estadísticas
+        self.total_codigos_label = ct.CTkLabel(
+            parent, 
+            text="Total de códigos: 0", 
+            font=("Segoe UI", 11), 
+            text_color="#00FFAA", 
+            fg_color="#000000"
+        )
+        self.total_codigos_label.pack(pady=(0, 2))
+        
+        self.con_resultado_label = ct.CTkLabel(
+            parent, 
+            text="Con resultado: 0", 
+            font=("Segoe UI", 11), 
+            text_color="#00FFAA", 
+            fg_color="#000000"
+        )
+        self.con_resultado_label.pack(pady=(0, 2))
+        
+        self.sin_resultado_label = ct.CTkLabel(
+            parent, 
+            text="Sin resultado: 0", 
+            font=("Segoe UI", 11), 
+            text_color="#00FFAA", 
+            fg_color="#000000"
+        )
+        self.sin_resultado_label.pack(pady=(0, 2))
+        
+        self.ultima_actualizacion_label = ct.CTkLabel(
+            parent, 
+            text="Última actualización: Nunca", 
+            font=("Segoe UI", 11), 
+            text_color="#00FFAA", 
+            fg_color="#000000"
+        )
+        self.ultima_actualizacion_label.pack(pady=(0, 8))
+        
+        # Botón actualizar
+        self.update_button = ct.CTkButton(
+            parent,
+            text="Actualizar Índice",
+            font=("Segoe UI", 12, "bold"),
+            fg_color="#000000",
+            hover_color="#111111",
+            border_width=2,
+            border_color="#00FFAA",
+            text_color="#00FFAA",
+            corner_radius=12,
+            width=200,
+            height=32,
+            command=self.actualizar_indice
+        )
+        self.update_button.pack(pady=(0, 18))
+    
+    def buscar_codigo(self):
+        """Busca un código de barras"""
+        codigo = self.codigo_var.get().strip()
+        
+        # Validar entrada
+        es_valido, mensaje = Validators.validar_codigo_barras(codigo)
+        if not es_valido:
+            self.resultado_valor.configure(text=mensaje)
+            self.clave_valor.configure(text="")
+            self.codigo_var.set("")
+            self.codigo_entry.focus_set()
+            return
+        
+        # Limpiar código
+        codigo_limpio = Validators.limpiar_codigo_barras(codigo)
+        
+        # Deshabilitar botón durante búsqueda
+        self.search_button.configure(state="disabled", text="Buscando...")
+        
+        # Ejecutar búsqueda en hilo separado
+        threading.Thread(target=self._ejecutar_busqueda, args=(codigo_limpio,), daemon=True).start()
+    
+    def _ejecutar_busqueda(self, codigo):
+        """Ejecuta la búsqueda en la base de datos"""
+        try:
+            resultado = self.codigo_model.buscar_codigo(codigo)
+            
+            if resultado:
+                self.master.after(0, lambda: self._mostrar_resultado(resultado))
+                self.logger.log_user_action(self.usuario, f"Búsqueda exitosa: {codigo}")
+            else:
+                self.master.after(0, lambda: self._mostrar_no_encontrado())
+                self.logger.log_user_action(self.usuario, f"Búsqueda sin resultados: {codigo}")
+                
+        except Exception as e:
+            self.logger.error(f"Error en búsqueda: {str(e)}")
+            self.master.after(0, lambda: self._mostrar_error_busqueda(str(e)))
+        finally:
+            self.master.after(0, lambda: self._restaurar_boton_busqueda())
+    
+    def _mostrar_resultado(self, resultado):
+        """Muestra el resultado de la búsqueda"""
+        self.clave_valor.configure(text=f"ITEM: {resultado.get('item', '')}")
+        self.resultado_valor.configure(text=f"RESULTADO: {resultado.get('resultado', 'Sin resultado') or 'Sin resultado'}")
+        self.nom_valor.configure(text=f"Última actualización: {resultado.get('fecha_actualizacion', '')}")
+    
+    def _mostrar_no_encontrado(self):
+        """Muestra mensaje de no encontrado"""
+        self.clave_valor.configure(text="")
+        self.resultado_valor.configure(text="Código no encontrado")
+        self.nom_valor.configure(text="")
+    
+    def _mostrar_error_busqueda(self, error):
+        """Muestra error en la búsqueda"""
+        self.clave_valor.configure(text="")
+        self.resultado_valor.configure(text=f"Error al buscar: {error}")
+        self.nom_valor.configure(text="")
+    
+    def _restaurar_boton_busqueda(self):
+        """Restaura el botón de búsqueda"""
+        self.search_button.configure(text="Buscar", state="normal")
+        self.codigo_var.set("")
+        self.codigo_entry.focus_set()
+    
+    def cargar_estadisticas(self):
+        """Carga las estadísticas de la base de datos"""
+        try:
+            stats = self.codigo_model.obtener_estadisticas()
+            if isinstance(stats, dict):
+                self.total_codigos_label.configure(text=f"Total de códigos: {stats.get('total_codigos', 0)}")
+                self.con_resultado_label.configure(text=f"Con resultado: {stats.get('con_resultado', 0)}")
+                self.sin_resultado_label.configure(text=f"Sin resultado: {stats.get('sin_resultado', 0)}")
+                self.ultima_actualizacion_label.configure(text=f"Última actualización: {stats.get('ultima_actualizacion', 'Nunca')}")
+            else:
+                self.total_codigos_label.configure(text="Total de códigos: 0")
+                self.con_resultado_label.configure(text="Con resultado: 0")
+                self.sin_resultado_label.configure(text="Sin resultado: 0")
+                self.ultima_actualizacion_label.configure(text="Última actualización: Nunca")
+        except Exception as e:
+            self.logger.error(f"Error cargando estadísticas: {str(e)}")
+            self.total_codigos_label.configure(text="Total de códigos: 0")
+            self.con_resultado_label.configure(text="Con resultado: 0")
+            self.sin_resultado_label.configure(text="Sin resultado: 0")
+            self.ultima_actualizacion_label.configure(text="Última actualización: Nunca")
+    
+    def actualizar_indice(self):
+        """Actualiza el índice desde archivos Excel"""
+        # Verificar configuración
+        es_valido, mensaje = Validators.validar_configuracion_completa(self.config_data)
+        if not es_valido:
+            messagebox.showerror("Error", mensaje)
+            return
+        
+        # Ejecutar actualización en hilo separado
+        threading.Thread(target=self._ejecutar_actualizacion, daemon=True).start()
+    
+    def _ejecutar_actualizacion(self):
+        """Ejecuta la actualización del índice"""
+        try:
+            self.master.after(0, lambda: self.update_button.configure(state="disabled", text="Actualizando..."))
+            # Usar cargar_clp directamente
+            resultado = self.codigo_model.cargar_clp(self.config_data['contenedor'])
+            if not isinstance(resultado, dict):
+                resultado = {'nuevos_registros': 0, 'total_codigos': 0, 'total_procesados': 0}
+            self.master.after(0, lambda: self._mostrar_resultado_actualizacion(resultado))
+            self.logger.log_user_action(self.usuario, "Índice actualizado", f"Registros: {resultado.get('total_procesados', 0)}")
+        except Exception as e:
+            self.logger.error(f"Error actualizando índice: {str(e)}")
+            self.master.after(0, lambda e=e: messagebox.showerror("Error", f"Error al actualizar índice: {str(e)}"))
+        finally:
+            self.master.after(0, lambda: self.update_button.configure(state="normal", text="Actualizar Índice"))
+            self.master.after(0, self.cargar_estadisticas)
+    
+    def _mostrar_resultado_actualizacion(self, resultado):
+        """Muestra el resultado de la actualización del índice"""
+        try:
+            if isinstance(resultado, dict):
+                mensaje = f"Índice actualizado exitosamente.\n"
+                mensaje += f"Nuevos registros: {resultado.get('nuevos_registros', 0)}\n"
+                mensaje += f"Total de códigos: {resultado.get('total_codigos', 0)}\n"
+                mensaje += f"Total procesados: {resultado.get('total_procesados', 0)}\n"
+                messagebox.showinfo("Éxito", mensaje)
+            else:
+                messagebox.showinfo("Éxito", f"Índice actualizado: {resultado}")
+        except Exception as e:
+            self.logger.error(f"Error mostrando resultado: {str(e)}")
+            messagebox.showerror("Error", f"Error al actualizar índice: {str(e)}")
+    
+    def _configurar_tab_captura(self, parent):
+        """Configura la pestaña de captura de datos"""
+        # Frame principal
+        main_frame = ct.CTkFrame(parent, fg_color="#000000")
+        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        
+        # Título
+        ct.CTkLabel(
+            main_frame, 
+            text="Captura de Cumplimientos", 
+            font=("Segoe UI", 18, "bold"), 
+            text_color="#00FFAA"
+        ).pack(pady=(0, 20))
+        
+        # Variables
+        self.codigo_captura_var = StringVar()
+        self.item_captura_var = StringVar()
+        self.motivo_captura_var = StringVar(value="Instrucciones de cuidado")
+        self.cumple_captura_var = StringVar(value="NO CUMPLE")
+        
+        # Frame para campos de entrada
+        campos_frame = ct.CTkFrame(main_frame, fg_color="#000000")
+        campos_frame.pack(fill="x", pady=(0, 20))
+        
+        # Código de barras
+        ct.CTkLabel(
+            campos_frame, 
+            text="Código de barras:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 13, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 0))
+        
+        self.codigo_captura_entry = ct.CTkEntry(
+            campos_frame, 
+            textvariable=self.codigo_captura_var,
+            font=("Segoe UI", 13),
+            width=400,
+            height=36,
+            corner_radius=12,
+            border_width=2,
+            border_color="#00FFAA",
+            fg_color="#000000",
+            text_color="#00FFAA"
+        )
+        self.codigo_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
+        
+        # Item
+        ct.CTkLabel(
+            campos_frame, 
+            text="Item:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 13, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 0))
+        
+        self.item_captura_entry = ct.CTkEntry(
+            campos_frame, 
+            textvariable=self.item_captura_var,
+            font=("Segoe UI", 13),
+            width=400,
+            height=36,
+            corner_radius=12,
+            border_width=2,
+            border_color="#00FFAA",
+            fg_color="#000000",
+            text_color="#00FFAA"
+        )
+        self.item_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
+        
+        # Motivo
+        ct.CTkLabel(
+            campos_frame, 
+            text="Motivo:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 13, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 0))
+        
+        motivo_options = [
+            "Instrucciones de cuidado",
+            "Insumos",
+            "Pais de origen",
+            "Talla",
+            "Importador",
+            "Marca"
+        ]
+        
+        self.motivo_captura_menu = ct.CTkOptionMenu(
+            campos_frame,
+            variable=self.motivo_captura_var,
+            values=motivo_options,
+            fg_color="#000000",
+            text_color="#00FFAA",
+            font=("Segoe UI", 13),
+            width=400,
+            height=36
+        )
+        self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
+        
+        # Cumple/No cumple
+        ct.CTkLabel(
+            campos_frame, 
+            text="¿Cumple?", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 13, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 0))
+        
+        self.cumple_captura_menu = ct.CTkOptionMenu(
+            campos_frame,
+            variable=self.cumple_captura_var,
+            values=["CUMPLE", "NO CUMPLE"],
+            fg_color="#000000",
+            text_color="#00FFAA",
+            font=("Segoe UI", 13),
+            width=400,
+            height=36
+        )
+        self.cumple_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
+        
+        # Usuario (solo lectura)
+        ct.CTkLabel(
+            campos_frame, 
+            text="Usuario:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 13, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 0))
+        
+        self.usuario_captura_entry = ct.CTkEntry(
+            campos_frame, 
+            state="readonly",
+            font=("Segoe UI", 13),
+            width=400,
+            height=36,
+            corner_radius=12,
+            border_width=2,
+            border_color="#00FFAA",
+            fg_color="#000000",
+            text_color="#00FFAA"
+        )
+        self.usuario_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
+        self.usuario_captura_entry.insert(0, self.usuario)
+        
+        # Estado label
+        self.estado_captura_label = ct.CTkLabel(
+            campos_frame, 
+            text="", 
+            text_color="#FF3333", 
+            font=("Segoe UI", 11, "bold")
+        )
+        self.estado_captura_label.pack(pady=(4, 8))
+        
+        # Frame para botones
+        botones_captura_frame = ct.CTkFrame(main_frame, fg_color="#000000")
+        botones_captura_frame.pack(pady=20)
+        
+        # Botón guardar
+        self.guardar_captura_btn = ct.CTkButton(
+            botones_captura_frame, 
+            text="Guardar Captura", 
+            command=self.guardar_captura,
+            font=("Segoe UI", 14, "bold"), 
+            fg_color="#000000", 
+            hover_color="#111111", 
+            border_width=2, 
+            border_color="#00FFAA", 
+            text_color="#00FFAA", 
+            corner_radius=12, 
+            width=200, 
+            height=36
+        )
+        self.guardar_captura_btn.pack(side="left", padx=(0, 10))
+        
+        # Botón descargar
+        self.descargar_captura_btn = ct.CTkButton(
+            botones_captura_frame, 
+            text="Descargar Datos", 
+            command=self.descargar_capturas,
+            font=("Segoe UI", 14, "bold"), 
+            fg_color="#000000", 
+            hover_color="#111111", 
+            border_width=2, 
+            border_color="#55DDFF", 
+            text_color="#55DDFF", 
+            corner_radius=12, 
+            width=200, 
+            height=36
+        )
+        self.descargar_captura_btn.pack(side="left", padx=(0, 10))
+        
+        # Botón procesar histórico (solo admin)
+        if self.rol == "admin":
+            self.procesar_historico_btn = ct.CTkButton(
+                botones_captura_frame,
+                text="Procesar Histórico",
+                command=self.procesar_historico,
+                font=("Segoe UI", 14, "bold"),
+                fg_color="#000000",
+                hover_color="#111111",
+                border_width=2,
+                border_color="#FFAA00",
+                text_color="#FFAA00",
+                corner_radius=12,
+                width=200,
+                height=36
+            )
+            self.procesar_historico_btn.pack(side="left", padx=(0, 10))
+        
+        # Botón borrar datos (solo admin)
+        if self.rol == "admin":
+            self.borrar_capturas_btn = ct.CTkButton(
+                botones_captura_frame,
+                text="Borrar Datos",
+                command=self.borrar_capturas,
+                font=("Segoe UI", 14, "bold"),
+                fg_color="#000000",
+                hover_color="#111111",
+                border_width=2,
+                border_color="#FF3333",
+                text_color="#FF3333",
+                corner_radius=12,
+                width=200,
+                height=36
+            )
+            self.borrar_capturas_btn.pack(side="left")
+        
+        # Estadísticas de capturas
+        self._crear_estadisticas_captura(main_frame)
+    
+    def _crear_estadisticas_captura(self, parent):
+        """Crea las estadísticas de capturas"""
+        stats_frame = ct.CTkFrame(parent, fg_color="#000000")
+        stats_frame.pack(fill="x", pady=(20, 0))
+        
+        ct.CTkLabel(
+            stats_frame,
+            text="Estadísticas de Capturas",
+            font=("Segoe UI", 14, "bold"),
+            text_color="#00FFAA"
+        ).pack(pady=(10, 5))
+        
+        # Labels de estadísticas
+        self.total_capturas_label = ct.CTkLabel(
+            stats_frame,
+            text="Total de capturas: 0",
+            font=("Segoe UI", 11),
+            text_color="#00FFAA"
+        )
+        self.total_capturas_label.pack(pady=2)
+        
+        self.cumple_capturas_label = ct.CTkLabel(
+            stats_frame,
+            text="Cumple: 0",
+            font=("Segoe UI", 11),
+            text_color="#00FFAA"
+        )
+        self.cumple_capturas_label.pack(pady=2)
+        
+        self.no_cumple_capturas_label = ct.CTkLabel(
+            stats_frame,
+            text="No cumple: 0",
+            font=("Segoe UI", 11),
+            text_color="#00FFAA"
+        )
+        self.no_cumple_capturas_label.pack(pady=2)
+        
+        # Cargar estadísticas iniciales
+        self.cargar_estadisticas_captura()
+    
+    def guardar_captura(self):
+        """Guarda una nueva captura"""
+        # Obtener valores
+        codigo = self.codigo_captura_var.get().strip()
+        item = self.item_captura_var.get().strip()
+        motivo = self.motivo_captura_var.get().strip()
+        cumple = self.cumple_captura_var.get().strip()
+        
+        # Validar campos
+        if not codigo or not item or not motivo or not cumple:
+            self.estado_captura_label.configure(
+                text="Todos los campos son obligatorios.",
+                text_color="#FF3333"
+            )
+            return
+        
+        # Validar código de barras
+        es_valido_codigo, mensaje_codigo = Validators.validar_codigo_barras(codigo)
+        if not es_valido_codigo:
+            self.estado_captura_label.configure(text=mensaje_codigo, text_color="#FF3333")
+            return
+        
+        # Validar item
+        es_valido_item, mensaje_item = Validators.validar_item_code(item)
+        if not es_valido_item:
+            self.estado_captura_label.configure(text=mensaje_item, text_color="#FF3333")
+            return
+        
+        # Limpiar códigos
+        codigo_limpio = Validators.limpiar_codigo_barras(codigo)
+        item_limpio = Validators.limpiar_item_code(item)
+        
+        # Deshabilitar botón durante guardado
+        self.guardar_captura_btn.configure(state="disabled", text="Guardando...")
+        
+        # Ejecutar guardado en hilo separado
+        threading.Thread(
+            target=self._ejecutar_guardar_captura, 
+            args=(codigo_limpio, item_limpio, motivo, cumple), 
+            daemon=True
+        ).start()
+    
+    def _ejecutar_guardar_captura(self, codigo, item, motivo, cumple):
+        """Ejecuta el guardado de la captura"""
+        try:
+            # Guardar captura
+            if self.captura_model.guardar_captura(codigo, item, motivo, cumple, self.usuario):
+                self.master.after(0, lambda: self._mostrar_exito_captura())
+                self.logger.log_user_action(self.usuario, f"Captura guardada: {codigo}")
+            else:
+                self.master.after(0, lambda: self._mostrar_error_captura("Captura duplicada o error al guardar"))
+                
+        except Exception as e:
+            self.logger.error(f"Error guardando captura: {str(e)}")
+            self.master.after(0, lambda: self._mostrar_error_captura(str(e)))
+        finally:
+            self.master.after(0, lambda: self._restaurar_boton_captura())
+    
+    def _mostrar_exito_captura(self):
+        """Muestra mensaje de éxito en captura"""
+        self.estado_captura_label.configure(
+            text="¡Captura guardada exitosamente!",
+            text_color="#00FFAA"
+        )
+        # Limpiar campos
+        self.codigo_captura_var.set("")
+        self.item_captura_var.set("")
+        self.codigo_captura_entry.focus_set()
+        # Actualizar estadísticas
+        self.cargar_estadisticas_captura()
+    
+    def _mostrar_error_captura(self, error):
+        """Muestra error en captura"""
+        self.estado_captura_label.configure(
+            text=f"Error: {error}",
+            text_color="#FF3333"
+        )
+    
+    def _restaurar_boton_captura(self):
+        """Restaura el botón de captura"""
+        self.guardar_captura_btn.configure(state="normal", text="Guardar Captura")
+    
+    def descargar_capturas(self):
+        """Descarga las capturas a un archivo Excel"""
+        try:
+            # Solicitar ubicación de guardado
+            ruta_guardado = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Archivos Excel", "*.xlsx")],
+                title="Guardar Capturas",
+                initialfile=f"Capturas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            )
+            
+            if ruta_guardado:
+                # Ejecutar descarga en hilo separado
+                threading.Thread(
+                    target=self._ejecutar_descarga_capturas,
+                    args=(ruta_guardado,),
+                    daemon=True
+                ).start()
+            else:
+                self.estado_captura_label.configure(
+                    text="Descarga cancelada.",
+                    text_color="#FF3333"
+                )
+                
+        except Exception as e:
+            self.logger.error(f"Error iniciando descarga: {str(e)}")
+            self.estado_captura_label.configure(
+                text=f"Error al iniciar descarga: {str(e)}",
+                text_color="#FF3333"
+            )
+    
+    def _ejecutar_descarga_capturas(self, ruta):
+        """Ejecuta la descarga de capturas"""
+        try:
+            self.master.after(0, lambda: self.descargar_captura_btn.configure(state="disabled", text="Descargando..."))
+            
+            # Descargar capturas del usuario actual
+            if self.captura_model.exportar_capturas_excel(ruta, self.usuario):
+                self.master.after(0, lambda: self._mostrar_exito_descarga(ruta))
+                self.logger.log_user_action(self.usuario, f"Capturas descargadas: {ruta}")
+            else:
+                self.master.after(0, lambda: self._mostrar_error_descarga("No hay datos para descargar"))
+                
+        except Exception as e:
+            self.logger.error(f"Error descargando capturas: {str(e)}")
+            self.master.after(0, lambda: self._mostrar_error_descarga(str(e)))
+        finally:
+            self.master.after(0, lambda: self.descargar_captura_btn.configure(state="normal", text="Descargar Datos"))
+    
+    def _mostrar_exito_descarga(self, ruta):
+        """Muestra éxito en descarga"""
+        self.estado_captura_label.configure(
+            text=f"¡Capturas descargadas exitosamente!\n{ruta}",
+            text_color="#00FFAA"
+        )
+    
+    def _mostrar_error_descarga(self, error):
+        """Muestra error en descarga"""
+        self.estado_captura_label.configure(
+            text=f"Error al descargar: {error}",
+            text_color="#FF3333"
+        )
+    
+    def procesar_historico(self):
+        """Procesa el histórico de capturas"""
+        if self.rol != "admin":
+            return
+        
+        respuesta = messagebox.askyesno(
+            "Confirmar",
+            "¿Desea procesar el histórico de capturas?\nEsto actualizará los resultados en la base de datos."
+        )
+        
+        if respuesta:
+            # Ejecutar procesamiento en hilo separado
+            threading.Thread(target=self._ejecutar_procesar_historico, daemon=True).start()
+    
+    def _ejecutar_procesar_historico(self):
+        """Ejecuta el procesamiento del histórico"""
+        try:
+            self.master.after(0, lambda: self.procesar_historico_btn.configure(state="disabled", text="Procesando..."))
+            
+            resultado = self.captura_model.procesar_historico()
+            
+            self.master.after(0, lambda: self._mostrar_resultado_historico(resultado))
+            self.logger.log_user_action(self.usuario, "Histórico procesado", f"Procesados: {resultado['procesados']}")
+            
+        except Exception as e:
+            self.logger.error(f"Error procesando histórico: {str(e)}")
+            self.master.after(0, lambda: messagebox.showerror("Error", f"Error al procesar histórico: {str(e)}"))
+        finally:
+            self.master.after(0, lambda: self.procesar_historico_btn.configure(state="normal", text="Procesar Histórico"))
+    
+    def _mostrar_resultado_historico(self, resultado):
+        """Muestra el resultado del procesamiento del histórico"""
+        mensaje = (
+            f"Histórico procesado exitosamente.\n\n"
+            f"Registros procesados: {resultado['procesados']}\n"
+            f"Resultados actualizados: {resultado['actualizados']}"
+        )
+        messagebox.showinfo("Éxito", mensaje)
+    
+    def borrar_capturas(self):
+        """Borra todas las capturas (solo admin)"""
+        if self.rol != "admin":
+            return
+        
+        respuesta = messagebox.askyesno(
+            "Confirmar Borrado",
+            "¿Está seguro de que desea borrar TODAS las capturas?\n"
+            "Esta acción no se puede deshacer.\n"
+            "El histórico se mantendrá."
+        )
+        
+        if respuesta:
+            try:
+                if self.captura_model.limpiar_capturas(confirmar=True):
+                    messagebox.showinfo("Éxito", "Todas las capturas han sido borradas.")
+                    self.logger.log_user_action(self.usuario, "Capturas borradas")
+                    self.cargar_estadisticas_captura()
+                else:
+                    messagebox.showerror("Error", "Error al borrar las capturas.")
+            except Exception as e:
+                self.logger.error(f"Error borrando capturas: {str(e)}")
+                messagebox.showerror("Error", f"Error al borrar: {str(e)}")
+    
+    def cargar_estadisticas_captura(self):
+        """Carga las estadísticas de capturas"""
+        try:
+            stats = self.captura_model.obtener_estadisticas_capturas()
+            
+            self.total_capturas_label.configure(text=f"Total de capturas: {stats['total_capturas']}")
+            self.cumple_capturas_label.configure(text=f"Cumple: {stats['cumple']}")
+            self.no_cumple_capturas_label.configure(text=f"No cumple: {stats['no_cumple']}")
+            
+        except Exception as e:
+            self.logger.error(f"Error cargando estadísticas de captura: {str(e)}")
+    
+    def _configurar_tab_configuracion(self, parent):
+        """Configura la pestaña de configuración"""
+        # Frame principal
+        main_frame = ct.CTkFrame(parent, fg_color="#000000")
+        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        
+        # Título
+        ct.CTkLabel(
+            main_frame, 
+            text="Configuración de Archivos", 
+            font=("Segoe UI", 18, "bold"), 
+            text_color="#00FFAA"
+        ).pack(pady=(0, 20))
+        
+        # Variables de configuración
+        self.ruta_contenedor_var = StringVar(value=self.config_data.get("contenedor", ""))
+        
+        # Frame para archivos
+        archivos_frame = ct.CTkFrame(main_frame, fg_color="#000000")
+        archivos_frame.pack(fill="x", pady=(0, 20))
+        
+        # Archivo CLP
+        ct.CTkLabel(
+            archivos_frame, 
+            text="Archivo CLP:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(10, 0))
+        
+        self.ruta_contenedor_label = ct.CTkLabel(
+            archivos_frame, 
+            textvariable=self.ruta_contenedor_var, 
+            text_color="#55DDFF", 
+            wraplength=600, 
+            fg_color="#000000"
+        )
+        self.ruta_contenedor_label.pack(anchor="w", padx=20, pady=(0, 5))
+        
+        ct.CTkButton(
+            archivos_frame, 
+            text="Cargar/Actualizar CLP", 
+            command=self.cargar_archivo_contenedor,
+            font=("Segoe UI", 13, "bold"), 
+            fg_color="#000000", 
+            hover_color="#111111", 
+            border_width=2, 
+            border_color="#00FFAA", 
+            text_color="#00FFAA", 
+            corner_radius=12, 
+            width=260, 
+            height=36
+        ).pack(pady=5, padx=20, anchor="w")
+        
+        # Frame para configuración de actualizaciones
+        actualizaciones_frame = ct.CTkFrame(main_frame, fg_color="#000000")
+        actualizaciones_frame.pack(fill="x", pady=(0, 20))
+        
+        ct.CTkLabel(
+            actualizaciones_frame, 
+            text="Configuración de Actualizaciones", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(10, 0))
+        
+        # URL de actualizaciones
+        self.url_actualizaciones_var = StringVar(value=self.config_data.get("url_actualizaciones", "http://localhost:8000/updates"))
+        
+        ct.CTkLabel(
+            actualizaciones_frame, 
+            text="URL de Actualizaciones:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w", padx=20, pady=(5, 0))
+        
+        self.url_actualizaciones_entry = ct.CTkEntry(
+            actualizaciones_frame,
+            textvariable=self.url_actualizaciones_var,
+            font=("Segoe UI", 12),
+            width=400,
+            height=32,
+            corner_radius=8,
+            border_width=2,
+            border_color="#00FFAA",
+            fg_color="#000000",
+            text_color="#00FFAA"
+        )
+        self.url_actualizaciones_entry.pack(anchor="w", padx=20, pady=(0, 10))
+        
+        # Auto-actualización
+        self.auto_actualizar_var = StringVar(value=self.config_data.get("auto_actualizar", "true"))
+        
+        ct.CTkLabel(
+            actualizaciones_frame, 
+            text="Actualizaciones Automáticas:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w", padx=20, pady=(5, 0))
+        
+        self.auto_actualizar_menu = ct.CTkOptionMenu(
+            actualizaciones_frame,
+            variable=self.auto_actualizar_var,
+            values=["true", "false"],
+            fg_color="#000000",
+            text_color="#00FFAA",
+            font=("Segoe UI", 12),
+            width=200,
+            height=32
+        )
+        self.auto_actualizar_menu.pack(anchor="w", padx=20, pady=(0, 10))
+        
+        # Botón guardar configuración
+        ct.CTkButton(
+            actualizaciones_frame,
+            text="Guardar Configuración",
+            command=self.guardar_configuracion,
+            font=("Segoe UI", 13, "bold"),
+            fg_color="#000000",
+            hover_color="#111111",
+            border_width=2,
+            border_color="#00FFAA",
+            text_color="#00FFAA",
+            corner_radius=12,
+            width=200,
+            height=36
+        ).pack(pady=10, padx=20, anchor="w")
+        
+        # Frame para gestión de usuarios (solo admin)
+        if self.rol == "admin":
+            self._crear_gestion_usuarios(main_frame)
+    
+    def _crear_gestion_usuarios(self, parent):
+        """Crea la sección de gestión de usuarios"""
+        usuarios_frame = ct.CTkFrame(parent, fg_color="#000000")
+        usuarios_frame.pack(fill="x", pady=(0, 20))
+        
+        ct.CTkLabel(
+            usuarios_frame, 
+            text="Gestión de Usuarios", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(10, 0))
+        
+        # Variables para nuevo usuario
+        self.nuevo_usuario_var = StringVar()
+        self.nueva_contraseña_var = StringVar()
+        self.nuevo_rol_var = StringVar(value="usuario")
+        
+        # Campos para nuevo usuario
+        campos_frame = ct.CTkFrame(usuarios_frame, fg_color="#000000")
+        campos_frame.pack(fill="x", padx=20, pady=(10, 0))
+        
+        # Usuario
+        ct.CTkLabel(
+            campos_frame, 
+            text="Usuario:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w", pady=(5, 0))
+        
+        self.nuevo_usuario_entry = ct.CTkEntry(
+            campos_frame,
+            textvariable=self.nuevo_usuario_var,
+            font=("Segoe UI", 12),
+            width=200,
+            height=32,
+            corner_radius=8,
+            border_width=2,
+            border_color="#00FFAA",
+            fg_color="#000000",
+            text_color="#00FFAA"
+        )
+        self.nuevo_usuario_entry.pack(anchor="w", pady=(0, 5))
+        
+        # Contraseña
+        ct.CTkLabel(
+            campos_frame, 
+            text="Contraseña:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w", pady=(5, 0))
+        
+        self.nueva_contraseña_entry = ct.CTkEntry(
+            campos_frame,
+            textvariable=self.nueva_contraseña_var,
+            show="*",
+            font=("Segoe UI", 12),
+            width=200,
+            height=32,
+            corner_radius=8,
+            border_width=2,
+            border_color="#00FFAA",
+            fg_color="#000000",
+            text_color="#00FFAA"
+        )
+        self.nueva_contraseña_entry.pack(anchor="w", pady=(0, 5))
+        
+        # Rol
+        ct.CTkLabel(
+            campos_frame, 
+            text="Rol:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w", pady=(5, 0))
+        
+        self.nuevo_rol_menu = ct.CTkOptionMenu(
+            campos_frame,
+            variable=self.nuevo_rol_var,
+            values=["usuario", "captura", "admin"],
+            fg_color="#000000",
+            text_color="#00FFAA",
+            font=("Segoe UI", 12),
+            width=200,
+            height=32
+        )
+        self.nuevo_rol_menu.pack(anchor="w", pady=(0, 10))
+        
+        # Botón crear usuario
+        ct.CTkButton(
+            campos_frame,
+            text="Crear Usuario",
+            command=self.crear_usuario,
+            font=("Segoe UI", 12, "bold"),
+            fg_color="#000000",
+            hover_color="#111111",
+            border_width=2,
+            border_color="#00FFAA",
+            text_color="#00FFAA",
+            corner_radius=12,
+            width=150,
+            height=32
+        ).pack(anchor="w", pady=(0, 10))
+        
+        # Lista de usuarios
+        self._crear_lista_usuarios(usuarios_frame)
+    
+    def _crear_lista_usuarios(self, parent):
+        """Crea la lista de usuarios"""
+        lista_frame = ct.CTkFrame(parent, fg_color="#000000")
+        lista_frame.pack(fill="x", padx=20, pady=(10, 0))
+        
+        ct.CTkLabel(
+            lista_frame, 
+            text="Usuarios Existentes", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+        
+        # Frame para la lista
+        self.lista_usuarios_frame = ct.CTkScrollableFrame(
+            lista_frame,
+            fg_color="#000000",
+            width=600,
+            height=200
+        )
+        self.lista_usuarios_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        
+        # Cargar lista inicial
+        self.cargar_lista_usuarios()
+    
+    def cargar_archivo_contenedor(self):
+        """Carga el archivo de contenedor"""
+        ruta = filedialog.askopenfilename(
+            filetypes=[("Archivos Excel", "*.xls;*.xlsx"), ("Todos", "*.*")],
+            title="Seleccionar Archivo Contenedor (CLP)"
+        )
+        if ruta:
+            # Validar archivo
+            es_valido, mensaje = Validators.validar_archivo_excel(ruta)
+            if es_valido:
+                self.config_data["contenedor"] = ruta
+                self.ruta_contenedor_var.set(ruta)
+                self.guardar_configuracion()
+                messagebox.showinfo("Éxito", "Archivo contenedor cargado correctamente")
+            else:
+                messagebox.showerror("Error", f"Archivo inválido: {mensaje}")
+    
+    def cargar_archivo_modelos(self):
+        """Carga el archivo de modelos (histórico)"""
+        ruta = filedialog.askopenfilename(
+            filetypes=[("Archivos Excel", "*.xls;*.xlsx"), ("Todos", "*.*")],
+            title="Seleccionar Archivo Histórico (Modelos)"
+        )
+        if ruta:
+            # Validar archivo
+            es_valido, mensaje = Validators.validar_archivo_excel(ruta)
+            if es_valido:
+                self.config_data["modelos"] = ruta
+                self.ruta_modelos_var.set(ruta)
+                self.guardar_configuracion()
+                messagebox.showinfo("Éxito", "Archivo histórico cargado correctamente")
+            else:
+                messagebox.showerror("Error", f"Archivo inválido: {mensaje}")
+    
+    def guardar_configuracion(self):
+        """Guarda la configuración en la base de datos"""
+        try:
+            # Actualizar configuración local
+            self.config_data["url_actualizaciones"] = self.url_actualizaciones_var.get()
+            self.config_data["auto_actualizar"] = self.auto_actualizar_var.get()
+            
+            # Guardar en base de datos
+            for clave, valor in self.config_data.items():
+                if valor:  # Solo guardar valores no vacíos
+                    data = {"valor": valor}
+                    condition = {"clave": clave}
+                    
+                    # Verificar si existe
+                    existing = self.db_manager.execute_query(
+                        "SELECT id FROM configuracion WHERE clave = %s",
+                        (clave,)
+                    )
+                    
+                    if existing:
+                        self.db_manager.update_one("configuracion", data, condition)
+                    else:
+                        data["clave"] = clave
+                        data["descripcion"] = f"Configuración de {clave}"
+                        self.db_manager.insert_one("configuracion", data)
+            
+            messagebox.showinfo("Éxito", "Configuración guardada correctamente")
+            self.logger.log_user_action(self.usuario, "Configuración actualizada")
+            
+        except Exception as e:
+            self.logger.error(f"Error guardando configuración: {str(e)}")
+            messagebox.showerror("Error", f"Error al guardar configuración: {str(e)}")
+    
+    def crear_usuario(self):
+        """Crea un nuevo usuario"""
+        usuario = self.nuevo_usuario_var.get().strip()
+        contraseña = self.nueva_contraseña_var.get().strip()
+        rol = self.nuevo_rol_var.get().strip()
+        
+        # Validar campos
+        if not usuario or not contraseña:
+            messagebox.showwarning("Campos vacíos", "Usuario y contraseña son obligatorios")
+            return
+        
+        # Validar formato
+        es_valido_usuario, mensaje_usuario = Validators.validar_usuario(usuario)
+        es_valido_pass, mensaje_pass = Validators.validar_contraseña(contraseña)
+        
+        if not es_valido_usuario:
+            messagebox.showerror("Error", mensaje_usuario)
+            return
+        
+        if not es_valido_pass:
+            messagebox.showerror("Error", mensaje_pass)
+            return
+        
+        try:
+            # Crear usuario
+            if self.usuario_model.crear_usuario(usuario, contraseña, rol):
+                messagebox.showinfo("Éxito", f"Usuario {usuario} creado correctamente")
+                self.logger.log_user_action(self.usuario, f"Usuario creado: {usuario}")
+                
+                # Limpiar campos
+                self.nuevo_usuario_var.set("")
+                self.nueva_contraseña_var.set("")
+                self.nuevo_usuario_entry.focus_set()
+                
+                # Actualizar lista
+                self.cargar_lista_usuarios()
+            else:
+                messagebox.showerror("Error", "Error al crear usuario")
+                
+        except Exception as e:
+            self.logger.error(f"Error creando usuario: {str(e)}")
+            messagebox.showerror("Error", f"Error al crear usuario: {str(e)}")
+    
+    def cargar_lista_usuarios(self):
+        """Carga la lista de usuarios"""
+        try:
+            # Limpiar lista actual
+            for widget in self.lista_usuarios_frame.winfo_children():
+                widget.destroy()
+            
+            # Obtener usuarios
+            usuarios = self.usuario_model.obtener_usuarios()
+            
+            if not usuarios:
+                ct.CTkLabel(
+                    self.lista_usuarios_frame,
+                    text="No hay usuarios registrados",
+                    text_color="#55DDFF",
+                    font=("Segoe UI", 11)
+                ).pack(pady=10)
+                return
+            
+            # Crear elementos de la lista
+            for usuario in usuarios:
+                self._crear_elemento_usuario(usuario)
+                
+        except Exception as e:
+            self.logger.error(f"Error cargando lista de usuarios: {str(e)}")
+    
+    def _crear_elemento_usuario(self, usuario):
+        """Crea un elemento de usuario en la lista"""
+        elemento_frame = ct.CTkFrame(self.lista_usuarios_frame, fg_color="#111111")
+        elemento_frame.pack(fill="x", pady=2, padx=5)
+        
+        # Información del usuario
+        info_frame = ct.CTkFrame(elemento_frame, fg_color="#111111")
+        info_frame.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+        
+        ct.CTkLabel(
+            info_frame,
+            text=f"Usuario: {usuario['usuario']} | Rol: {usuario['rol']} | Creado: {usuario['fecha_creacion']}",
+            text_color="#00FFAA",
+            font=("Segoe UI", 11)
+        ).pack(anchor="w")
+        
+        # Botones de acción
+        botones_frame = ct.CTkFrame(elemento_frame, fg_color="#111111")
+        botones_frame.pack(side="right", padx=5, pady=5)
+        
+        # Botón desactivar (solo si no es el usuario actual)
+        if usuario['usuario'] != self.usuario:
+            ct.CTkButton(
+                botones_frame,
+                text="Desactivar",
+                command=lambda u=usuario['usuario']: self.desactivar_usuario(u),
+                font=("Segoe UI", 10),
+                fg_color="#000000",
+                hover_color="#333333",
+                border_width=1,
+                border_color="#FF3333",
+                text_color="#FF3333",
+                corner_radius=8,
+                width=80,
+                height=24
+            ).pack(side="left", padx=(0, 5))
+    
+    def desactivar_usuario(self, nombre_usuario):
+        """Desactiva un usuario"""
+        respuesta = messagebox.askyesno(
+            "Confirmar",
+            f"¿Está seguro de que desea desactivar al usuario {nombre_usuario}?"
+        )
+        
+        if respuesta:
+            try:
+                if self.usuario_model.desactivar_usuario(nombre_usuario):
+                    messagebox.showinfo("Éxito", f"Usuario {nombre_usuario} desactivado")
+                    self.logger.log_user_action(self.usuario, f"Usuario desactivado: {nombre_usuario}")
+                    self.cargar_lista_usuarios()
+                else:
+                    messagebox.showerror("Error", "Error al desactivar usuario")
+            except Exception as e:
+                self.logger.error(f"Error desactivando usuario: {str(e)}")
+                messagebox.showerror("Error", f"Error al desactivar: {str(e)}")
+
+    def _configurar_tab_actualizaciones(self, parent):
+        """Configura la pestaña de actualizaciones"""
+        # Frame principal
+        main_frame = ct.CTkFrame(parent, fg_color="#000000")
+        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        
+        # Título
+        ct.CTkLabel(
+            main_frame, 
+            text="Sistema de Actualizaciones", 
+            font=("Segoe UI", 18, "bold"), 
+            text_color="#00FFAA"
+        ).pack(pady=(0, 20))
+        
+        # Información de versión actual
+        self._crear_info_version(main_frame)
+        
+        # Estado de actualizaciones
+        self._crear_estado_actualizaciones(main_frame)
+        
+        # Controles de actualización
+        self._crear_controles_actualizacion(main_frame)
+        
+        # Historial de actualizaciones
+        self._crear_historial_actualizaciones(main_frame)
+    
+    def _crear_info_version(self, parent):
+        """Crea la información de versión actual"""
+        info_frame = ct.CTkFrame(parent, fg_color="#000000")
+        info_frame.pack(fill="x", pady=(0, 20))
+        
+        ct.CTkLabel(
+            info_frame, 
+            text="Información de Versión", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(10, 0))
+        
+        # Versión actual
+        self.version_actual_label = ct.CTkLabel(
+            info_frame,
+            text=f"Versión actual: {VERSION_ACTUAL}",
+            text_color="#00FFAA",
+            font=("Segoe UI", 12)
+        )
+        self.version_actual_label.pack(anchor="w", padx=20, pady=2)
+        
+        # Fecha de compilación
+        self.fecha_compilacion_label = ct.CTkLabel(
+            info_frame,
+            text=f"Fecha de compilación: {FECHA_COMPILACION}",
+            text_color="#00FFAA",
+            font=("Segoe UI", 12)
+        )
+        self.fecha_compilacion_label.pack(anchor="w", padx=20, pady=2)
+        
+        # Última verificación
+        self.ultima_verificacion_label = ct.CTkLabel(
+            info_frame,
+            text="Última verificación: Nunca",
+            text_color="#00FFAA",
+            font=("Segoe UI", 12)
+        )
+        self.ultima_verificacion_label.pack(anchor="w", padx=20, pady=2)
+    
+    def _crear_estado_actualizaciones(self, parent):
+        """Crea el estado de actualizaciones"""
+        estado_frame = ct.CTkFrame(parent, fg_color="#000000")
+        estado_frame.pack(fill="x", pady=(0, 20))
+        
+        ct.CTkLabel(
+            estado_frame, 
+            text="Estado de Actualizaciones", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(10, 0))
+        
+        # Estado actual
+        self.estado_actualizacion_label = ct.CTkLabel(
+            estado_frame,
+            text="Estado: Sin verificar",
+            text_color="#55DDFF",
+            font=("Segoe UI", 12, "bold")
+        )
+        self.estado_actualizacion_label.pack(anchor="w", padx=20, pady=2)
+        
+        # Versión disponible
+        self.version_disponible_label = ct.CTkLabel(
+            estado_frame,
+            text="Versión disponible: -",
+            text_color="#55DDFF",
+            font=("Segoe UI", 12)
+        )
+        self.version_disponible_label.pack(anchor="w", padx=20, pady=2)
+        
+        # Tamaño de descarga
+        self.tamaño_descarga_label = ct.CTkLabel(
+            estado_frame,
+            text="Tamaño: -",
+            text_color="#55DDFF",
+            font=("Segoe UI", 12)
+        )
+        self.tamaño_descarga_label.pack(anchor="w", padx=20, pady=2)
+        
+        # Barra de progreso
+        self.progress_actualizacion = ct.CTkProgressBar(
+            estado_frame,
+            width=400,
+            height=16,
+            corner_radius=8,
+            progress_color="#00FFAA"
+        )
+        self.progress_actualizacion.set(0)
+        self.progress_actualizacion.pack(anchor="w", padx=20, pady=(5, 10))
+        
+        # Label de progreso
+        self.progress_label_actualizacion = ct.CTkLabel(
+            estado_frame,
+            text="",
+            text_color="#00FFAA",
+            font=("Segoe UI", 10)
+        )
+        self.progress_label_actualizacion.pack(anchor="w", padx=20, pady=(0, 10))
+    
+    def _crear_controles_actualizacion(self, parent):
+        """Crea los controles de actualización"""
+        controles_frame = ct.CTkFrame(parent, fg_color="#000000")
+        controles_frame.pack(fill="x", pady=(0, 20))
+        
+        ct.CTkLabel(
+            controles_frame, 
+            text="Controles de Actualización", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(10, 0))
+        
+        # Frame para botones
+        botones_frame = ct.CTkFrame(controles_frame, fg_color="#000000")
+        botones_frame.pack(fill="x", padx=20, pady=(10, 10))
+        
+        # Botón verificar actualizaciones
+        self.verificar_btn = ct.CTkButton(
+            botones_frame,
+            text="Verificar Actualizaciones",
+            command=self.verificar_actualizaciones,
+            font=("Segoe UI", 13, "bold"),
+            fg_color="#000000",
+            hover_color="#111111",
+            border_width=2,
+            border_color="#00FFAA",
+            text_color="#00FFAA",
+            corner_radius=12,
+            width=200,
+            height=36
+        )
+        self.verificar_btn.pack(side="left", padx=(0, 10))
+        
+        # Botón descargar actualización
+        self.descargar_btn = ct.CTkButton(
+            botones_frame,
+            text="Descargar Actualización",
+            command=self.descargar_actualizacion,
+            font=("Segoe UI", 13, "bold"),
+            fg_color="#000000",
+            hover_color="#111111",
+            border_width=2,
+            border_color="#55DDFF",
+            text_color="#55DDFF",
+            corner_radius=12,
+            width=200,
+            height=36,
+            state="disabled"
+        )
+        self.descargar_btn.pack(side="left", padx=(0, 10))
+        
+        # Botón instalar actualización
+        self.instalar_btn = ct.CTkButton(
+            botones_frame,
+            text="Instalar Actualización",
+            command=self.instalar_actualizacion,
+            font=("Segoe UI", 13, "bold"),
+            fg_color="#000000",
+            hover_color="#111111",
+            border_width=2,
+            border_color="#FFAA00",
+            text_color="#FFAA00",
+            corner_radius=12,
+            width=200,
+            height=36,
+            state="disabled"
+        )
+        self.instalar_btn.pack(side="left")
+        
+        # Botón cancelar
+        self.cancelar_btn = ct.CTkButton(
+            botones_frame,
+            text="Cancelar",
+            command=self.cancelar_actualizacion,
+            font=("Segoe UI", 13, "bold"),
+            fg_color="#000000",
+            hover_color="#111111",
+            border_width=2,
+            border_color="#FF3333",
+            text_color="#FF3333",
+            corner_radius=12,
+            width=150,
+            height=36,
+            state="disabled"
+        )
+        self.cancelar_btn.pack(side="right", padx=(10, 0))
+    
+    def _crear_historial_actualizaciones(self, parent):
+        """Crea el historial de actualizaciones"""
+        historial_frame = ct.CTkFrame(parent, fg_color="#000000")
+        historial_frame.pack(fill="both", expand=True, pady=(0, 20))
+        
+        ct.CTkLabel(
+            historial_frame, 
+            text="Historial de Actualizaciones", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(10, 0))
+        
+        # Frame para la lista
+        self.historial_frame = ct.CTkScrollableFrame(
+            historial_frame,
+            fg_color="#000000",
+            width=600,
+            height=200
+        )
+        self.historial_frame.pack(fill="both", expand=True, padx=20, pady=(10, 10))
+        
+        # Cargar historial inicial
+        self.cargar_historial_actualizaciones()
+    
+    def verificar_actualizaciones(self):
+        """Verifica si hay actualizaciones disponibles"""
+        # Deshabilitar botón durante verificación
+        self.verificar_btn.configure(state="disabled", text="Verificando...")
+        self.estado_actualizacion_label.configure(text="Estado: Verificando...", text_color="#FFAA00")
+        
+        # Ejecutar verificación en hilo separado
+        threading.Thread(target=self._ejecutar_verificacion, daemon=True).start()
+    
+    def _ejecutar_verificacion(self):
+        """Ejecuta la verificación de actualizaciones"""
+        try:
+            # Verificar actualización
+            resultado = self.updater.verificar_actualizacion()
+            
+            if resultado['hay_actualizacion']:
+                self.master.after(0, lambda: self._mostrar_actualizacion_disponible(resultado))
+            else:
+                self.master.after(0, lambda: self._mostrar_sin_actualizacion())
+                
+        except Exception as e:
+            self.logger.error(f"Error verificando actualizaciones: {str(e)}")
+            self.master.after(0, lambda: self._mostrar_error_verificacion(str(e)))
+        finally:
+            self.master.after(0, lambda: self._restaurar_boton_verificar())
+    
+    def _mostrar_actualizacion_disponible(self, resultado):
+        """Muestra que hay una actualización disponible"""
+        self.estado_actualizacion_label.configure(
+            text="Estado: Actualización disponible", 
+            text_color="#00FFAA"
+        )
+        self.version_disponible_label.configure(
+            text=f"Versión disponible: {resultado['version']}"
+        )
+        self.tamaño_descarga_label.configure(
+            text=f"Tamaño: {resultado['tamaño']}"
+        )
+        self.descargar_btn.configure(state="normal")
+        
+        # Actualizar última verificación
+        self.ultima_verificacion_label.configure(
+            text=f"Última verificación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+    
+    def _mostrar_sin_actualizacion(self):
+        """Muestra que no hay actualizaciones"""
+        self.estado_actualizacion_label.configure(
+            text="Estado: Sin actualizaciones disponibles", 
+            text_color="#55DDFF"
+        )
+        self.version_disponible_label.configure(text="Versión disponible: -")
+        self.tamaño_descarga_label.configure(text="Tamaño: -")
+        
+        # Actualizar última verificación
+        self.ultima_verificacion_label.configure(
+            text=f"Última verificación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+    
+    def _mostrar_error_verificacion(self, error):
+        """Muestra error en verificación"""
+        self.estado_actualizacion_label.configure(
+            text=f"Estado: Error - {error}", 
+            text_color="#FF3333"
+        )
+    
+    def _restaurar_boton_verificar(self):
+        """Restaura el botón de verificar"""
+        self.verificar_btn.configure(state="normal", text="Verificar Actualizaciones")
+    
+    def descargar_actualizacion(self):
+        """Descarga la actualización"""
+        # Deshabilitar botones
+        self.descargar_btn.configure(state="disabled", text="Descargando...")
+        self.cancelar_btn.configure(state="normal")
+        
+        # Mostrar progreso
+        self.progress_actualizacion.set(0)
+        self.progress_label_actualizacion.configure(text="Iniciando descarga...")
+        
+        # Ejecutar descarga en hilo separado
+        threading.Thread(target=self._ejecutar_descarga_actualizacion, daemon=True).start()
+    
+    def _ejecutar_descarga_actualizacion(self):
+        """Ejecuta la descarga de la actualización"""
+        try:
+            # Callback para actualizar progreso
+            def callback_progreso(progreso, mensaje):
+                self.master.after(0, lambda: self._actualizar_progreso(progreso, mensaje))
+            
+            # Descargar actualización
+            resultado = self.updater.descargar_actualizacion(callback_progreso)
+            
+            if resultado['exito']:
+                self.master.after(0, lambda: self._mostrar_descarga_completada())
+            else:
+                self.master.after(0, lambda: self._mostrar_error_descarga(resultado['error']))
+                
+        except Exception as e:
+            self.logger.error(f"Error descargando actualización: {str(e)}")
+            self.master.after(0, lambda: self._mostrar_error_descarga(str(e)))
+        finally:
+            self.master.after(0, lambda: self._restaurar_botones_descarga())
+    
+    def _actualizar_progreso(self, progreso, mensaje):
+        """Actualiza la barra de progreso"""
+        self.progress_actualizacion.set(progreso)
+        self.progress_label_actualizacion.configure(text=mensaje)
+    
+    def _mostrar_descarga_completada(self):
+        """Muestra que la descarga se completó"""
+        self.progress_actualizacion.set(1.0)
+        self.progress_label_actualizacion.configure(text="Descarga completada")
+        self.instalar_btn.configure(state="normal")
+        messagebox.showinfo("Éxito", "Actualización descargada correctamente")
+    
+    def _mostrar_error_descarga(self, error):
+        """Muestra error en descarga"""
+        self.progress_label_actualizacion.configure(text=f"Error: {error}")
+        messagebox.showerror("Error", f"Error al descargar: {error}")
+    
+    def _restaurar_botones_descarga(self):
+        """Restaura los botones de descarga"""
+        self.descargar_btn.configure(state="normal", text="Descargar Actualización")
+        self.cancelar_btn.configure(state="disabled")
+    
+    def instalar_actualizacion(self):
+        """Instala la actualización descargada"""
+        respuesta = messagebox.askyesno(
+            "Confirmar Instalación",
+            "¿Está seguro de que desea instalar la actualización?\n"
+            "La aplicación se cerrará durante la instalación."
+        )
+        
+        if respuesta:
+            try:
+                # Instalar actualización
+                resultado = self.updater.instalar_actualizacion()
+                
+                if resultado['exito']:
+                    messagebox.showinfo(
+                        "Instalación Completada", 
+                        "La actualización se instaló correctamente.\n"
+                        "La aplicación se reiniciará."
+                    )
+                    # Reiniciar aplicación
+                    self.master.after(2000, self._reiniciar_aplicacion)
+                else:
+                    messagebox.showerror("Error", f"Error al instalar: {resultado['error']}")
+                    
+            except Exception as e:
+                self.logger.error(f"Error instalando actualización: {str(e)}")
+                messagebox.showerror("Error", f"Error al instalar: {str(e)}")
+    
+    def cancelar_actualizacion(self):
+        """Cancela la actualización en curso"""
+        self.updater.cancelar_actualizacion()
+        self.progress_label_actualizacion.configure(text="Actualización cancelada")
+        self._restaurar_botones_descarga()
+    
+    def _reiniciar_aplicacion(self):
+        """Reinicia la aplicación"""
+        try:
+            # Guardar estado si es necesario
+            self.logger.log_user_action(self.usuario, "Aplicación reiniciada por actualización")
+            
+            # Reiniciar proceso
+            python = sys.executable
+            os.execl(python, python, *sys.argv)
+        except Exception as e:
+            self.logger.error(f"Error reiniciando aplicación: {str(e)}")
+            messagebox.showerror("Error", "Error al reiniciar la aplicación")
+    
+    def cargar_historial_actualizaciones(self):
+        """Carga el historial de actualizaciones"""
+        try:
+            # Limpiar historial actual
+            for widget in self.historial_frame.winfo_children():
+                widget.destroy()
+            
+            # Obtener historial
+            historial = self.updater.obtener_historial_actualizaciones()
+            
+            if not historial:
+                ct.CTkLabel(
+                    self.historial_frame,
+                    text="No hay historial de actualizaciones",
+                    text_color="#55DDFF",
+                    font=("Segoe UI", 11)
+                ).pack(pady=10)
+                return
+            
+            # Crear elementos del historial
+            for actualizacion in historial:
+                self._crear_elemento_historial(actualizacion)
+                
+        except Exception as e:
+            self.logger.error(f"Error cargando historial: {str(e)}")
+    
+    def _crear_elemento_historial(self, actualizacion):
+        """Crea un elemento del historial"""
+        elemento_frame = ct.CTkFrame(self.historial_frame, fg_color="#111111")
+        elemento_frame.pack(fill="x", pady=2, padx=5)
+        
+        # Información de la actualización
+        info_frame = ct.CTkFrame(elemento_frame, fg_color="#111111")
+        info_frame.pack(side="left", fill="x", expand=True, padx=5, pady=5)
+        
+        ct.CTkLabel(
+            info_frame,
+            text=f"Versión: {actualizacion['version']} | Fecha: {actualizacion['fecha']} | Estado: {actualizacion['estado']}",
+            text_color="#00FFAA",
+            font=("Segoe UI", 11)
+        ).pack(anchor="w")
+        
+        if actualizacion.get('descripcion'):
+            ct.CTkLabel(
+                info_frame,
+                text=f"Descripción: {actualizacion['descripcion']}",
+                text_color="#55DDFF",
+                font=("Segoe UI", 10)
+            ).pack(anchor="w")
+    
+    def verificar_actualizacion_automatica(self):
+        """Verifica actualizaciones automáticamente"""
+        if self.config_data.get("auto_actualizar", "true") == "true":
+            # Verificar cada 24 horas
+            if not hasattr(self, 'ultima_verificacion_auto') or \
+               (datetime.now() - self.ultima_verificacion_auto).total_seconds() > 86400:
+                
+                self.ultima_verificacion_auto = datetime.now()
+                threading.Thread(target=self._verificacion_automatica_silenciosa, daemon=True).start()
+    
+    def _verificacion_automatica_silenciosa(self):
+        """Realiza una verificación automática silenciosa"""
+        try:
+            resultado = self.updater.verificar_actualizacion()
+            
+            if resultado['hay_actualizacion']:
+                # Mostrar notificación
+                self.master.after(0, lambda: self._mostrar_notificacion_actualizacion(resultado))
+                
+        except Exception as e:
+            self.logger.error(f"Error en verificación automática: {str(e)}")
+    
+    def _mostrar_notificacion_actualizacion(self, resultado):
+        """Muestra notificación de actualización disponible"""
+        respuesta = messagebox.askyesno(
+            "Actualización Disponible",
+            f"Hay una nueva versión disponible: {resultado['version']}\n\n"
+            f"¿Desea descargarla ahora?"
+        )
+        
+        if respuesta:
+            # Cambiar a pestaña de actualizaciones
+            self.tabview.set("Actualizaciones")
+            # Iniciar descarga
+            self.descargar_actualizacion()
+
+if __name__ == "__main__":
+    app = EscanerApp()
+    app.ejecutar() 
