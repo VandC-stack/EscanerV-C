@@ -820,14 +820,7 @@ class MainWindow:
         )
         self.item_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
         
-        # Motivo
-        ct.CTkLabel(
-            campos_frame, 
-            text="Motivo:", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 13, "bold")
-        ).pack(anchor="w", padx=10, pady=(10, 0))
-        
+        # Motivo solo si NO CUMPLE
         motivo_options = [
             "Instrucciones de cuidado",
             "Insumos",
@@ -836,9 +829,8 @@ class MainWindow:
             "Importador",
             "Marca"
         ]
-        
         self.motivo_captura_menu = ct.CTkOptionMenu(
-            campos_frame,
+            main_frame,
             variable=self.motivo_captura_var,
             values=motivo_options,
             fg_color="#000000",
@@ -847,7 +839,14 @@ class MainWindow:
             width=400,
             height=36
         )
-        self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
+        # Mostrar/ocultar motivo según selección de cumple
+        def on_cumple_change(*args):
+            if self.cumple_captura_var.get() == "NO CUMPLE":
+                self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
+            else:
+                self.motivo_captura_menu.pack_forget()
+        self.cumple_captura_var.trace_add('write', on_cumple_change)
+        on_cumple_change()
         
         # Cumple/No cumple
         ct.CTkLabel(
@@ -1027,7 +1026,7 @@ class MainWindow:
         cumple = self.cumple_captura_var.get().strip()
         
         # Validar campos
-        if not codigo or not item or not motivo or not cumple:
+        if not codigo or not item or not cumple:
             self.estado_captura_label.configure(
                 text="Todos los campos son obligatorios.",
                 text_color="#FF3333"
