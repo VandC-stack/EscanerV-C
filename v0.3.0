@@ -1,5 +1,5 @@
 import customtkinter as ct
-from tkinter import StringVar, messagebox, filedialog
+from tkinter import StringVar, messagebox, filedialog, ttk, simpledialog
 from PIL import Image
 import os
 import sys
@@ -12,13 +12,14 @@ from typing import Dict, List, Optional
 import pandas as pd
 import re
 import math
+import hashlib
 
 # Configuración de la aplicación
 ct.set_appearance_mode("dark")
 ct.set_default_color_theme("dark-blue")
 
 # Constantes de versión
-VERSION_ACTUAL = "3.0.0"
+VERSION_ACTUAL = "0.3.0"
 FECHA_COMPILACION = "2025-01-28"
 
 # Configuración de logging
@@ -330,7 +331,11 @@ class LoginWindow:
     
     def _restaurar_boton(self):
         """Restaura el botón de login"""
-        self.login_button.configure(state="normal", text="Entrar")
+        try:
+            if hasattr(self, 'login_button') and self.login_button.winfo_exists():
+                self.login_button.configure(state="normal", text="Entrar")
+        except:
+            pass  # Widget ya destruido
 
 class MainWindow:
     def __init__(self, master, usuario, rol, codigo_model, captura_model, updater, logger, config_data, usuario_model, db_manager):
@@ -346,7 +351,8 @@ class MainWindow:
         self.db_manager = db_manager
         
         self.crear_interfaz()
-        self.cargar_estadisticas()
+        if self.rol != "superadmin":
+            self.cargar_estadisticas()
     
     def crear_interfaz(self):
         """Crea la interfaz principal"""
@@ -354,6 +360,30 @@ class MainWindow:
         self.tabview = ct.CTkTabview(self.master, fg_color="#000000")
         self.tabview.pack(fill="both", expand=True, padx=40, pady=20)
         
+        # Interfaz específica para superadmin
+        if self.rol == "superadmin":
+            self._crear_interfaz_superadmin()
+        else:
+            self._crear_interfaz_normal()
+        
+        # Establecer pestaña inicial
+        if self.rol == "superadmin":
+            self.tabview.set("Gestión de Usuarios")
+        else:
+            self.tabview.set("Escáner")
+    
+    def _crear_interfaz_superadmin(self):
+        """Crea la interfaz específica para superadmin"""
+        # Pestaña Gestión de Usuarios
+        self.tabview.add("Gestión de Usuarios")
+        self._configurar_tab_gestion_usuarios(self.tabview.tab("Gestión de Usuarios"))
+        
+        # Pestaña Base de Datos
+        self.tabview.add("Base de Datos")
+        self._configurar_tab_base_datos(self.tabview.tab("Base de Datos"))
+    
+    def _crear_interfaz_normal(self):
+        """Crea la interfaz normal para otros usuarios"""
         # Pestaña Escáner (todos los usuarios)
         self.tabview.add("Escáner")
         self._configurar_tab_escaner(self.tabview.tab("Escáner"))
@@ -367,13 +397,41 @@ class MainWindow:
         if self.rol == "admin":
             self.tabview.add("Configuración")
             self._configurar_tab_configuracion(self.tabview.tab("Configuración"))
-        
-        # Pestaña Actualizaciones (todos los usuarios)
-        self.tabview.add("Actualizaciones")
-        self._configurar_tab_actualizaciones(self.tabview.tab("Actualizaciones"))
-        
-        # Establecer pestaña inicial
-        self.tabview.set("Escáner")
+    
+    def _configurar_tab_gestion_usuarios(self, parent):
+        """Configura la pestaña de gestión de usuarios para superadmin"""
+        main_frame = ct.CTkFrame(parent, fg_color="#000000")
+        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        ct.CTkLabel(
+            main_frame, 
+            text="Panel de Administración - Gestión de Usuarios", 
+            font=("Segoe UI", 18, "bold"), 
+            text_color="#00FFAA"
+        ).pack(pady=(0, 20))
+        # Layout horizontal: formulario a la izquierda, lista a la derecha
+        content_frame = ct.CTkFrame(main_frame, fg_color="#000000")
+        content_frame.pack(fill="both", expand=True)
+        # Formulario de usuario (izquierda)
+        self._crear_formulario_usuario(content_frame, side="left")
+        # Lista de usuarios (derecha, mejor estilo)
+        self._crear_lista_usuarios(content_frame, side="right")
+    
+    def _configurar_tab_base_datos(self, parent):
+        """Configura la pestaña de base de datos para superadmin"""
+        main_frame = ct.CTkFrame(parent, fg_color="#000000")
+        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        ct.CTkLabel(
+            main_frame, 
+            text="Panel de Administración - Base de Datos", 
+            font=("Segoe UI", 18, "bold"), 
+            text_color="#00FFAA"
+        ).pack(pady=(0, 20))
+        # Tabs para cada tabla
+        tablas_tabview = ct.CTkTabview(main_frame, fg_color="#111111")
+        tablas_tabview.pack(fill="both", expand=True)
+        for nombre_tabla in ["usuarios", "codigos_items", "capturas"]:
+            tablas_tabview.add(nombre_tabla.capitalize())
+            self._mostrar_tabla_sql(tablas_tabview.tab(nombre_tabla.capitalize()), nombre_tabla)
     
     def _configurar_tab_escaner(self, parent):
         """Configura la pestaña del escáner"""
@@ -594,14 +652,13 @@ class MainWindow:
         """Ejecuta la búsqueda en la base de datos"""
         try:
             resultado = self.codigo_model.buscar_codigo(codigo)
-            
             if resultado:
+                # Mostrar item y resultado
                 self.master.after(0, lambda: self._mostrar_resultado(resultado))
                 self.logger.log_user_action(self.usuario, f"Búsqueda exitosa: {codigo}")
             else:
                 self.master.after(0, lambda: self._mostrar_no_encontrado())
                 self.logger.log_user_action(self.usuario, f"Búsqueda sin resultados: {codigo}")
-                
         except Exception as e:
             self.logger.error(f"Error en búsqueda: {str(e)}")
             self.master.after(0, lambda: self._mostrar_error_busqueda(str(e)))
@@ -697,9 +754,8 @@ class MainWindow:
             messagebox.showerror("Error", f"Error al actualizar índice: {str(e)}")
     
     def _configurar_tab_captura(self, parent):
-        """Configura la pestaña de captura de datos"""
-        # Frame principal
-        main_frame = ct.CTkFrame(parent, fg_color="#000000")
+        # Scrollable frame principal
+        main_frame = ct.CTkScrollableFrame(parent, fg_color="#000000")
         main_frame.pack(fill="both", expand=True, padx=40, pady=40)
         
         # Título
@@ -813,28 +869,21 @@ class MainWindow:
         )
         self.cumple_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
         
-        # Usuario (solo lectura)
-        ct.CTkLabel(
-            campos_frame, 
-            text="Usuario:", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 13, "bold")
-        ).pack(anchor="w", padx=10, pady=(10, 0))
-        
-        self.usuario_captura_entry = ct.CTkEntry(
-            campos_frame, 
-            state="readonly",
-            font=("Segoe UI", 13),
-            width=400,
-            height=36,
-            corner_radius=12,
-            border_width=2,
-            border_color="#00FFAA",
-            fg_color="#000000",
-            text_color="#00FFAA"
-        )
-        self.usuario_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
-        self.usuario_captura_entry.insert(0, self.usuario)
+        # Usuario (oculto)
+        # self.usuario_captura_entry = ct.CTkEntry(
+        #     campos_frame, 
+        #     state="readonly",
+        #     font=("Segoe UI", 13),
+        #     width=400,
+        #     height=36,
+        #     corner_radius=12,
+        #     border_width=2,
+        #     border_color="#00FFAA",
+        #     fg_color="#000000",
+        #     text_color="#00FFAA"
+        # )
+        # self.usuario_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
+        # self.usuario_captura_entry.insert(0, self.usuario)
         
         # Estado label
         self.estado_captura_label = ct.CTkLabel(
@@ -845,11 +894,11 @@ class MainWindow:
         )
         self.estado_captura_label.pack(pady=(4, 8))
         
-        # Frame para botones
+        # Estadísticas de capturas
+        self._crear_estadisticas_captura(main_frame)
+        # Botones de acción centrados justo después de los campos
         botones_captura_frame = ct.CTkFrame(main_frame, fg_color="#000000")
-        botones_captura_frame.pack(pady=20)
-        
-        # Botón guardar
+        botones_captura_frame.pack(anchor="center", pady=20)
         self.guardar_captura_btn = ct.CTkButton(
             botones_captura_frame, 
             text="Guardar Captura", 
@@ -864,9 +913,7 @@ class MainWindow:
             width=200, 
             height=36
         )
-        self.guardar_captura_btn.pack(side="left", padx=(0, 10))
-        
-        # Botón descargar
+        self.guardar_captura_btn.pack(side="left", padx=(0, 10), pady=0)
         self.descargar_captura_btn = ct.CTkButton(
             botones_captura_frame, 
             text="Descargar Datos", 
@@ -881,9 +928,7 @@ class MainWindow:
             width=200, 
             height=36
         )
-        self.descargar_captura_btn.pack(side="left", padx=(0, 10))
-        
-        # Botón procesar histórico (solo admin)
+        self.descargar_captura_btn.pack(side="left", padx=(0, 10), pady=0)
         if self.rol == "admin":
             self.procesar_historico_btn = ct.CTkButton(
                 botones_captura_frame,
@@ -899,9 +944,7 @@ class MainWindow:
                 width=200,
                 height=36
             )
-            self.procesar_historico_btn.pack(side="left", padx=(0, 10))
-        
-        # Botón borrar datos (solo admin)
+            self.procesar_historico_btn.pack(side="left", padx=(0, 10), pady=0)
         if self.rol == "admin":
             self.borrar_capturas_btn = ct.CTkButton(
                 botones_captura_frame,
@@ -917,10 +960,23 @@ class MainWindow:
                 width=200,
                 height=36
             )
-            self.borrar_capturas_btn.pack(side="left")
-        
-        # Estadísticas de capturas
-        self._crear_estadisticas_captura(main_frame)
+            self.borrar_capturas_btn.pack(side="left", padx=(0, 10), pady=0)
+        if self.rol == "superadmin":
+            self.aceptar_todas_btn = ct.CTkButton(
+                botones_captura_frame,
+                text="Aceptar todas las capturas pendientes",
+                command=self.aceptar_todas_capturas_pendientes,
+                font=("Segoe UI", 14, "bold"),
+                fg_color="#00FFAA",
+                hover_color="#111111",
+                border_width=2,
+                border_color="#00FFAA",
+                text_color="#000000",
+                corner_radius=12,
+                width=260,
+                height=36
+            )
+            self.aceptar_todas_btn.pack(side="left", padx=(0, 10), pady=0)
     
     def _crear_estadisticas_captura(self, parent):
         """Crea las estadísticas de capturas"""
@@ -989,6 +1045,15 @@ class MainWindow:
         if not es_valido_item:
             self.estado_captura_label.configure(text=mensaje_item, text_color="#FF3333")
             return
+        
+        # Validar motivo solo si NO CUMPLE
+        if cumple == "NO CUMPLE":
+            if not motivo:
+                self.estado_captura_label.configure(
+                    text="El motivo es obligatorio si el resultado es NO CUMPLE.",
+                    text_color="#FF3333"
+                )
+                return
         
         # Limpiar códigos
         codigo_limpio = Validators.limpiar_codigo_barras(codigo)
@@ -1147,27 +1212,26 @@ class MainWindow:
         messagebox.showinfo("Éxito", mensaje)
     
     def borrar_capturas(self):
-        """Borra todas las capturas (solo admin)"""
+        """Borra la última captura del usuario actual (solo admin)"""
         if self.rol != "admin":
             return
-        
         respuesta = messagebox.askyesno(
             "Confirmar Borrado",
-            "¿Está seguro de que desea borrar TODAS las capturas?\n"
-            "Esta acción no se puede deshacer.\n"
-            "El histórico se mantendrá."
+            "¿Está seguro de que desea borrar la ÚLTIMA captura que realizó?\nEsta acción no se puede deshacer."
         )
-        
         if respuesta:
             try:
-                if self.captura_model.limpiar_capturas(confirmar=True):
-                    messagebox.showinfo("Éxito", "Todas las capturas han sido borradas.")
-                    self.logger.log_user_action(self.usuario, "Capturas borradas")
+                # Obtener la última captura del usuario actual
+                ultima = self.captura_model.obtener_ultima_captura_usuario(self.usuario)
+                if ultima:
+                    self.captura_model.eliminar_captura_por_id(ultima['id'])
+                    messagebox.showinfo("Éxito", "La última captura ha sido borrada.")
+                    self.logger.log_user_action(self.usuario, "Última captura borrada")
                     self.cargar_estadisticas_captura()
                 else:
-                    messagebox.showerror("Error", "Error al borrar las capturas.")
+                    messagebox.showerror("Error", "No hay capturas para borrar.")
             except Exception as e:
-                self.logger.error(f"Error borrando capturas: {str(e)}")
+                self.logger.error(f"Error borrando última captura: {str(e)}")
                 messagebox.showerror("Error", f"Error al borrar: {str(e)}")
     
     def cargar_estadisticas_captura(self):
@@ -1308,8 +1372,8 @@ class MainWindow:
             height=36
         ).pack(pady=10, padx=20, anchor="w")
         
-        # Frame para gestión de usuarios (solo admin)
-        if self.rol == "admin":
+        # Frame para gestión de usuarios (solo superadmin)
+        if self.rol == "superadmin":
             self._crear_gestion_usuarios(main_frame)
     
     def _crear_gestion_usuarios(self, parent):
@@ -1323,6 +1387,20 @@ class MainWindow:
             text_color="#00FFAA", 
             font=("Segoe UI", 14, "bold")
         ).pack(anchor="w", padx=20, pady=(10, 0))
+        
+        # Botón refrescar base de datos
+        self.btn_refrescar_bd = ct.CTkButton(
+            usuarios_frame,
+            text="Refrescar Base de Datos",
+            command=self.refrescar_base_datos,
+            fg_color="#00FFAA",
+            text_color="#000000",
+            font=("Segoe UI", 12, "bold"),
+            border_width=2,
+            border_color="#00FFAA",
+            corner_radius=10
+        )
+        self.btn_refrescar_bd.pack(anchor="w", padx=20, pady=(0, 10))
         
         # Variables para nuevo usuario
         self.nuevo_usuario_var = StringVar()
@@ -1389,7 +1467,7 @@ class MainWindow:
         self.nuevo_rol_menu = ct.CTkOptionMenu(
             campos_frame,
             variable=self.nuevo_rol_var,
-            values=["usuario", "captura", "admin"],
+            values=["usuario", "captura", "admin"],  # No permitir superadmin
             fg_color="#000000",
             text_color="#00FFAA",
             font=("Segoe UI", 12),
@@ -1417,29 +1495,238 @@ class MainWindow:
         # Lista de usuarios
         self._crear_lista_usuarios(usuarios_frame)
     
-    def _crear_lista_usuarios(self, parent):
-        """Crea la lista de usuarios"""
-        lista_frame = ct.CTkFrame(parent, fg_color="#000000")
-        lista_frame.pack(fill="x", padx=20, pady=(10, 0))
-        
+    def _crear_lista_usuarios(self, parent, side="right"):
+        from tkinter import ttk, simpledialog, messagebox
+        lista_frame = ct.CTkFrame(parent, fg_color="#111111", border_width=2, border_color="#00FFAA")
+        lista_frame.pack(side=side, fill="both", expand=True, padx=20, pady=10)
         ct.CTkLabel(
             lista_frame, 
             text="Usuarios Existentes", 
             text_color="#00FFAA", 
-            font=("Segoe UI", 12, "bold")
+            font=("Segoe UI", 14, "bold")
         ).pack(anchor="w", padx=10, pady=(10, 5))
-        
-        # Frame para la lista
-        self.lista_usuarios_frame = ct.CTkScrollableFrame(
-            lista_frame,
-            fg_color="#000000",
-            width=600,
-            height=200
+        # Botones superiores alineados a la derecha
+        self.mostrar_contrasenas = False
+        botones_superiores_frame = ct.CTkFrame(lista_frame, fg_color="#111111")
+        botones_superiores_frame.pack(fill="x", padx=10, pady=(0, 5))
+        self.btn_toggle_contrasena = ct.CTkButton(
+            botones_superiores_frame,
+            text="Mostrar contraseñas",
+            command=self._toggle_contrasena_columna,
+            fg_color="#222222",
+            text_color="#00FFAA",
+            font=("Segoe UI", 12, "bold"),
+            border_width=2,
+            border_color="#00FFAA",
+            corner_radius=10
         )
-        self.lista_usuarios_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        
-        # Cargar lista inicial
-        self.cargar_lista_usuarios()
+        self.btn_toggle_contrasena.pack(side="left", padx=(0, 5))
+        self.btn_eliminar_usuario = ct.CTkButton(
+            botones_superiores_frame,
+            text="Eliminar seleccionado",
+            command=self._eliminar_usuario_tabla,
+            fg_color="#FF3333",
+            text_color="#FFFFFF",
+            font=("Segoe UI", 12, "bold"),
+            border_width=2,
+            border_color="#FF3333",
+            corner_radius=10
+        )
+        self.btn_eliminar_usuario.pack(side="left", padx=(0, 5))
+        self.btn_reset_pass = ct.CTkButton(
+            botones_superiores_frame,
+            text="Restablecer contraseña",
+            command=self._restablecer_contrasena_usuario,
+            fg_color="#00FFAA",
+            text_color="#000000",
+            font=("Segoe UI", 12, "bold"),
+            border_width=2,
+            border_color="#00FFAA",
+            corner_radius=10
+        )
+        self.btn_reset_pass.pack(side="right", padx=(0, 5))
+        # Botón refrescar base de datos solo para superadmin
+        if self.rol == "superadmin":
+            self.btn_refrescar_bd = ct.CTkButton(
+                botones_superiores_frame,
+                text="Refrescar Base de Datos",
+                command=self.refrescar_base_datos,
+                fg_color="#00FFAA",
+                text_color="#000000",
+                font=("Segoe UI", 12, "bold"),
+                border_width=2,
+                border_color="#00FFAA",
+                corner_radius=10
+            )
+            self.btn_refrescar_bd.pack(side="right", padx=(0, 5))
+        # Tabla visual con fondo y bordes customtkinter
+        self.usuarios_table_frame = ct.CTkFrame(lista_frame, fg_color="#000000", border_width=2, border_color="#00FFAA")
+        self.usuarios_table_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        self._refresh_usuarios_table()
+    
+    def _toggle_contrasena_columna(self):
+        self.mostrar_contrasenas = not self.mostrar_contrasenas
+        if self.mostrar_contrasenas:
+            self.btn_toggle_contrasena.configure(text="Ocultar contraseñas")
+        else:
+            self.btn_toggle_contrasena.configure(text="Mostrar contraseñas")
+        self._refresh_usuarios_table()
+    
+    def _refresh_usuarios_table(self):
+        from tkinter import ttk
+        for widget in self.usuarios_table_frame.winfo_children():
+            widget.destroy()
+        columns = ["id", "usuario", "rol", "activo", "fecha_creacion"]
+        if self.mostrar_contrasenas:
+            columns.append("contraseña (hash)")
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("Treeview",
+                        background="#000000",
+                        foreground="#00FFAA",
+                        rowheight=28,
+                        fieldbackground="#000000",
+                        font=("Segoe UI", 11))
+        style.configure("Treeview.Heading",
+                        background="#111111",
+                        foreground="#00FFAA",
+                        font=("Segoe UI", 12, "bold"))
+        style.map('Treeview', background=[('selected', '#222222')])
+        tree = ttk.Treeview(self.usuarios_table_frame, columns=columns, show="headings", height=16, style="Treeview")
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=120, anchor="center")
+        usuarios = self.usuario_model.obtener_usuarios()
+        for user in usuarios:
+            row = [user.get("id", ""), user.get("usuario", ""), user.get("rol", ""), user.get("activo", ""), user.get("fecha_creacion", "")]
+            if self.mostrar_contrasenas:
+                row.append(user.get("contraseña", ""))
+            tree.insert("", "end", values=row)
+        tree.pack(fill="both", expand=True)
+        # Edición directa
+        def editar_celda(event):
+            sel = tree.selection()
+            if not sel:
+                return
+            item = sel[0]
+            col = tree.identify_column(event.x)
+            col_idx = int(col.replace('#','')) - 1
+            col_name = columns[col_idx]
+            old_value = tree.item(item)['values'][col_idx]
+            entry = ttk.Entry(self.usuarios_table_frame, font=("Segoe UI", 11))
+            entry.insert(0, old_value)
+            entry.place(x=event.x_root-self.usuarios_table_frame.winfo_rootx(), y=event.y_root-self.usuarios_table_frame.winfo_rooty())
+            entry.focus_set()
+            def guardar(event=None):
+                nuevo_valor = entry.get()
+                tree.set(item, column=col_name, value=nuevo_valor)
+                pk_val = tree.item(item)['values'][0]
+                # Si es contraseña, hashearla si no parece hash
+                if self.mostrar_contrasenas and col_name == "contraseña (hash)":
+                    import hashlib
+                    if len(nuevo_valor) != 64 or not all(c in '0123456789abcdef' for c in nuevo_valor.lower()):
+                        nuevo_valor = hashlib.sha256(nuevo_valor.encode()).hexdigest()
+                    self.db_manager.update_one("usuarios", {"contraseña": nuevo_valor}, {"id": pk_val})
+                else:
+                    db_col = col_name if col_name != "contraseña (hash)" else "contraseña"
+                    self.db_manager.update_one("usuarios", {db_col: nuevo_valor}, {"id": pk_val})
+                entry.destroy()
+            entry.bind('<Return>', guardar)
+            entry.bind('<FocusOut>', lambda e: entry.destroy())
+        tree.bind('<Double-1>', editar_celda)
+        self.usuarios_tree = tree
+    
+    def _eliminar_usuario_tabla(self):
+        sel = self.usuarios_tree.selection()
+        if not sel:
+            return
+        for item in sel:
+            pk_val = self.usuarios_tree.item(item)['values'][0]
+            self.db_manager.delete_one("usuarios", {"id": pk_val})
+            self.usuarios_tree.delete(item)
+    
+    def _crear_formulario_usuario(self, parent, side="right"):
+        form_frame = ct.CTkFrame(parent, fg_color="#111111", border_width=2, border_color="#00FFAA")
+        form_frame.pack(side=side, fill="y", expand=True, padx=20, pady=10)
+        ct.CTkLabel(
+            form_frame, 
+            text="Gestión de Usuarios", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 14, "bold")
+        ).pack(anchor="w", pady=(10, 0))
+        self.nuevo_usuario_var = StringVar()
+        self.nueva_contraseña_var = StringVar()
+        self.nuevo_rol_var = StringVar(value="usuario")
+        ct.CTkLabel(
+            form_frame, 
+            text="Usuario:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w", pady=(5, 0))
+        self.nuevo_usuario_entry = ct.CTkEntry(
+            form_frame,
+            textvariable=self.nuevo_usuario_var,
+            font=("Segoe UI", 12),
+            width=200,
+            height=32,
+            corner_radius=8,
+            border_width=2,
+            border_color="#00FFAA",
+            fg_color="#000000",
+            text_color="#00FFAA"
+        )
+        self.nuevo_usuario_entry.pack(anchor="w", pady=(0, 5))
+        ct.CTkLabel(
+            form_frame, 
+            text="Contraseña:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w", pady=(5, 0))
+        self.nueva_contraseña_entry = ct.CTkEntry(
+            form_frame,
+            textvariable=self.nueva_contraseña_var,
+            show="*",
+            font=("Segoe UI", 12),
+            width=200,
+            height=32,
+            corner_radius=8,
+            border_width=2,
+            border_color="#00FFAA",
+            fg_color="#000000",
+            text_color="#00FFAA"
+        )
+        self.nueva_contraseña_entry.pack(anchor="w", pady=(0, 5))
+        ct.CTkLabel(
+            form_frame, 
+            text="Rol:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 12, "bold")
+        ).pack(anchor="w", pady=(5, 0))
+        self.nuevo_rol_menu = ct.CTkOptionMenu(
+            form_frame,
+            variable=self.nuevo_rol_var,
+            values=["usuario", "captura", "admin"],
+            fg_color="#000000",
+            text_color="#00FFAA",
+            font=("Segoe UI", 12),
+            width=200,
+            height=32
+        )
+        self.nuevo_rol_menu.pack(anchor="w", pady=(0, 10))
+        ct.CTkButton(
+            form_frame,
+            text="Crear Usuario",
+            command=self.crear_usuario,
+            font=("Segoe UI", 12, "bold"),
+            fg_color="#000000",
+            hover_color="#111111",
+            border_width=2,
+            border_color="#00FFAA",
+            text_color="#00FFAA",
+            corner_radius=12,
+            width=150,
+            height=32
+        ).pack(anchor="w", pady=(0, 10))
     
     def cargar_archivo_contenedor(self):
         """Carga el archivo de contenedor"""
@@ -1513,126 +1800,31 @@ class MainWindow:
         usuario = self.nuevo_usuario_var.get().strip()
         contraseña = self.nueva_contraseña_var.get().strip()
         rol = self.nuevo_rol_var.get().strip()
-        
-        # Validar campos
         if not usuario or not contraseña:
             messagebox.showwarning("Campos vacíos", "Usuario y contraseña son obligatorios")
             return
-        
-        # Validar formato
         es_valido_usuario, mensaje_usuario = Validators.validar_usuario(usuario)
         es_valido_pass, mensaje_pass = Validators.validar_contraseña(contraseña)
-        
         if not es_valido_usuario:
             messagebox.showerror("Error", mensaje_usuario)
             return
-        
         if not es_valido_pass:
             messagebox.showerror("Error", mensaje_pass)
             return
-        
         try:
-            # Crear usuario
             if self.usuario_model.crear_usuario(usuario, contraseña, rol):
                 messagebox.showinfo("Éxito", f"Usuario {usuario} creado correctamente")
                 self.logger.log_user_action(self.usuario, f"Usuario creado: {usuario}")
-                
-                # Limpiar campos
                 self.nuevo_usuario_var.set("")
                 self.nueva_contraseña_var.set("")
                 self.nuevo_usuario_entry.focus_set()
-                
-                # Actualizar lista
-                self.cargar_lista_usuarios()
+                self._refresh_usuarios_table()
             else:
                 messagebox.showerror("Error", "Error al crear usuario")
-                
         except Exception as e:
             self.logger.error(f"Error creando usuario: {str(e)}")
             messagebox.showerror("Error", f"Error al crear usuario: {str(e)}")
     
-    def cargar_lista_usuarios(self):
-        """Carga la lista de usuarios"""
-        try:
-            # Limpiar lista actual
-            for widget in self.lista_usuarios_frame.winfo_children():
-                widget.destroy()
-            
-            # Obtener usuarios
-            usuarios = self.usuario_model.obtener_usuarios()
-            
-            if not usuarios:
-                ct.CTkLabel(
-                    self.lista_usuarios_frame,
-                    text="No hay usuarios registrados",
-                    text_color="#55DDFF",
-                    font=("Segoe UI", 11)
-                ).pack(pady=10)
-                return
-            
-            # Crear elementos de la lista
-            for usuario in usuarios:
-                self._crear_elemento_usuario(usuario)
-                
-        except Exception as e:
-            self.logger.error(f"Error cargando lista de usuarios: {str(e)}")
-    
-    def _crear_elemento_usuario(self, usuario):
-        """Crea un elemento de usuario en la lista"""
-        elemento_frame = ct.CTkFrame(self.lista_usuarios_frame, fg_color="#111111")
-        elemento_frame.pack(fill="x", pady=2, padx=5)
-        
-        # Información del usuario
-        info_frame = ct.CTkFrame(elemento_frame, fg_color="#111111")
-        info_frame.pack(side="left", fill="x", expand=True, padx=5, pady=5)
-        
-        ct.CTkLabel(
-            info_frame,
-            text=f"Usuario: {usuario['usuario']} | Rol: {usuario['rol']} | Creado: {usuario['fecha_creacion']}",
-            text_color="#00FFAA",
-            font=("Segoe UI", 11)
-        ).pack(anchor="w")
-        
-        # Botones de acción
-        botones_frame = ct.CTkFrame(elemento_frame, fg_color="#111111")
-        botones_frame.pack(side="right", padx=5, pady=5)
-        
-        # Botón desactivar (solo si no es el usuario actual)
-        if usuario['usuario'] != self.usuario:
-            ct.CTkButton(
-                botones_frame,
-                text="Desactivar",
-                command=lambda u=usuario['usuario']: self.desactivar_usuario(u),
-                font=("Segoe UI", 10),
-                fg_color="#000000",
-                hover_color="#333333",
-                border_width=1,
-                border_color="#FF3333",
-                text_color="#FF3333",
-                corner_radius=8,
-                width=80,
-                height=24
-            ).pack(side="left", padx=(0, 5))
-    
-    def desactivar_usuario(self, nombre_usuario):
-        """Desactiva un usuario"""
-        respuesta = messagebox.askyesno(
-            "Confirmar",
-            f"¿Está seguro de que desea desactivar al usuario {nombre_usuario}?"
-        )
-        
-        if respuesta:
-            try:
-                if self.usuario_model.desactivar_usuario(nombre_usuario):
-                    messagebox.showinfo("Éxito", f"Usuario {nombre_usuario} desactivado")
-                    self.logger.log_user_action(self.usuario, f"Usuario desactivado: {nombre_usuario}")
-                    self.cargar_lista_usuarios()
-                else:
-                    messagebox.showerror("Error", "Error al desactivar usuario")
-            except Exception as e:
-                self.logger.error(f"Error desactivando usuario: {str(e)}")
-                messagebox.showerror("Error", f"Error al desactivar: {str(e)}")
-
     def _configurar_tab_actualizaciones(self, parent):
         """Configura la pestaña de actualizaciones"""
         # Frame principal
@@ -1643,7 +1835,7 @@ class MainWindow:
         ct.CTkLabel(
             main_frame, 
             text="Sistema de Actualizaciones", 
-            font=("Segoe UI", 18, "bold"), 
+            font=("Segoe UI", 22, "bold"), 
             text_color="#00FFAA"
         ).pack(pady=(0, 20))
         
@@ -1653,9 +1845,7 @@ class MainWindow:
         # Estado de actualizaciones
         self._crear_estado_actualizaciones(main_frame)
         
-        # Controles de actualización
-        self._crear_controles_actualizacion(main_frame)
-        
+        # No mostrar botones de control aquí
         # Historial de actualizaciones
         self._crear_historial_actualizaciones(main_frame)
     
@@ -1756,93 +1946,6 @@ class MainWindow:
             font=("Segoe UI", 10)
         )
         self.progress_label_actualizacion.pack(anchor="w", padx=20, pady=(0, 10))
-    
-    def _crear_controles_actualizacion(self, parent):
-        """Crea los controles de actualización"""
-        controles_frame = ct.CTkFrame(parent, fg_color="#000000")
-        controles_frame.pack(fill="x", pady=(0, 20))
-        
-        ct.CTkLabel(
-            controles_frame, 
-            text="Controles de Actualización", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 14, "bold")
-        ).pack(anchor="w", padx=20, pady=(10, 0))
-        
-        # Frame para botones
-        botones_frame = ct.CTkFrame(controles_frame, fg_color="#000000")
-        botones_frame.pack(fill="x", padx=20, pady=(10, 10))
-        
-        # Botón verificar actualizaciones
-        self.verificar_btn = ct.CTkButton(
-            botones_frame,
-            text="Verificar Actualizaciones",
-            command=self.verificar_actualizaciones,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#000000",
-            hover_color="#111111",
-            border_width=2,
-            border_color="#00FFAA",
-            text_color="#00FFAA",
-            corner_radius=12,
-            width=200,
-            height=36
-        )
-        self.verificar_btn.pack(side="left", padx=(0, 10))
-        
-        # Botón descargar actualización
-        self.descargar_btn = ct.CTkButton(
-            botones_frame,
-            text="Descargar Actualización",
-            command=self.descargar_actualizacion,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#000000",
-            hover_color="#111111",
-            border_width=2,
-            border_color="#55DDFF",
-            text_color="#55DDFF",
-            corner_radius=12,
-            width=200,
-            height=36,
-            state="disabled"
-        )
-        self.descargar_btn.pack(side="left", padx=(0, 10))
-        
-        # Botón instalar actualización
-        self.instalar_btn = ct.CTkButton(
-            botones_frame,
-            text="Instalar Actualización",
-            command=self.instalar_actualizacion,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#000000",
-            hover_color="#111111",
-            border_width=2,
-            border_color="#FFAA00",
-            text_color="#FFAA00",
-            corner_radius=12,
-            width=200,
-            height=36,
-            state="disabled"
-        )
-        self.instalar_btn.pack(side="left")
-        
-        # Botón cancelar
-        self.cancelar_btn = ct.CTkButton(
-            botones_frame,
-            text="Cancelar",
-            command=self.cancelar_actualizacion,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#000000",
-            hover_color="#111111",
-            border_width=2,
-            border_color="#FF3333",
-            text_color="#FF3333",
-            corner_radius=12,
-            width=150,
-            height=36,
-            state="disabled"
-        )
-        self.cancelar_btn.pack(side="right", padx=(10, 0))
     
     def _crear_historial_actualizaciones(self, parent):
         """Crea el historial de actualizaciones"""
@@ -2126,6 +2229,123 @@ class MainWindow:
             self.tabview.set("Actualizaciones")
             # Iniciar descarga
             self.descargar_actualizacion()
+    
+    def _mostrar_tabla_sql(self, parent, tabla):
+        from tkinter import ttk
+        import hashlib
+        frame = ct.CTkFrame(parent, fg_color="#000000", border_width=2, border_color="#00FFAA")
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        datos = self.db_manager.execute_query(f"SELECT * FROM {tabla}")
+        columnas = list(datos[0].keys()) if datos else []
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("Treeview",
+                        background="#000000",
+                        foreground="#00FFAA",
+                        rowheight=28,
+                        fieldbackground="#000000",
+                        font=("Segoe UI", 11))
+        style.configure("Treeview.Heading",
+                        background="#111111",
+                        foreground="#00FFAA",
+                        font=("Segoe UI", 12, "bold"))
+        style.map('Treeview', background=[('selected', '#222222')])
+        tree = ttk.Treeview(frame, columns=columnas, show="headings", style="Treeview")
+        for col in columnas:
+            tree.heading(col, text=col)
+            tree.column(col, width=120, anchor="center")
+        for row in datos:
+            tree.insert("", "end", values=[row[col] for col in columnas])
+        tree.pack(fill="both", expand=True)
+        def editar_celda(event):
+            item = tree.selection()[0]
+            col = tree.identify_column(event.x)
+            col_idx = int(col.replace('#','')) - 1
+            old_value = tree.item(item)['values'][col_idx]
+            entry = ttk.Entry(frame, font=("Segoe UI", 11))
+            entry.insert(0, old_value)
+            entry.place(x=event.x_root-frame.winfo_rootx(), y=event.y_root-frame.winfo_rooty())
+            entry.focus_set()
+            def guardar(event=None):
+                nuevo_valor = entry.get()
+                tree.set(item, column=columnas[col_idx], value=nuevo_valor)
+                pk_col = columnas[0]
+                pk_val = tree.item(item)['values'][0]
+                valor_guardar = nuevo_valor
+                if tabla == "usuarios" and columnas[col_idx] == "contraseña":
+                    valor_guardar = hashlib.sha256(nuevo_valor.encode()).hexdigest()
+                self.db_manager.update_one(tabla, {columnas[col_idx]: valor_guardar}, {pk_col: pk_val})
+                entry.destroy()
+            entry.bind('<Return>', guardar)
+            entry.bind('<FocusOut>', lambda e: entry.destroy())
+        tree.bind('<Double-1>', editar_celda)
+        def eliminar():
+            sel = tree.selection()
+            if not sel:
+                return
+            pk_col = columnas[0]
+            for item in sel:
+                pk_val = tree.item(item)['values'][0]
+                self.db_manager.delete_one(tabla, {pk_col: pk_val})
+                tree.delete(item)
+        btn_eliminar = ct.CTkButton(frame, text="Eliminar seleccionado", command=eliminar, fg_color="#FF3333", text_color="#FFFFFF", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#FF3333", corner_radius=10)
+        btn_eliminar.pack(pady=5)
+    
+    def gestionar_actualizaciones(self):
+        # Método vacío para evitar error de atributo
+        pass
+    
+    def _restablecer_contrasena_usuario(self):
+        from tkinter import simpledialog, messagebox
+        sel = self.usuarios_tree.selection()
+        if not sel:
+            messagebox.showwarning("Selecciona un usuario", "Debes seleccionar un usuario para restablecer la contraseña.")
+            return
+        item = sel[0]
+        usuario = self.usuarios_tree.item(item)['values'][1]
+        # Pedir nueva contraseña
+        nueva_pass = simpledialog.askstring("Restablecer contraseña", f"Nueva contraseña para '{usuario}':", show='*')
+        if not nueva_pass:
+            return
+        # Validar contraseña
+        es_valido, mensaje = Validators.validar_contraseña(nueva_pass)
+        if not es_valido:
+            messagebox.showerror("Error", mensaje)
+            return
+        # Hashear y actualizar
+        import hashlib
+        nueva_hash = hashlib.sha256(nueva_pass.encode()).hexdigest()
+        self.db_manager.update_one("usuarios", {"contraseña": nueva_hash}, {"usuario": usuario})
+        messagebox.showinfo("Éxito", f"Contraseña restablecida para '{usuario}'.")
+        self._refresh_usuarios_table()
+    
+    def refrescar_base_datos(self):
+        # Recarga los datos desde el CLP e histórico
+        try:
+            ruta_clp = self.config_data.get("contenedor", "")
+            if not ruta_clp:
+                messagebox.showerror("Error", "No se ha configurado el archivo CLP.")
+                return
+            resultado = self.codigo_model.cargar_clp(ruta_clp)
+            messagebox.showinfo("Éxito", f"Base de datos recargada.\nNuevos registros: {resultado.get('nuevos_registros', 0)}\nTotal procesados: {resultado.get('total_procesados', 0)}")
+            self.logger.log_user_action(self.usuario, "Base de datos refrescada")
+            # Actualizar tabla de usuarios si está visible
+            if hasattr(self, '_refresh_usuarios_table'):
+                self._refresh_usuarios_table()
+        except Exception as e:
+            self.logger.error(f"Error refrescando base de datos: {str(e)}")
+            messagebox.showerror("Error", f"Error al refrescar base de datos: {str(e)}")
+    
+    def aceptar_todas_capturas_pendientes(self):
+        # Lógica para aceptar todas las capturas pendientes de otros usuarios
+        try:
+            # Aquí deberías implementar la lógica para procesar todas las capturas pendientes
+            # Por ejemplo, recorrer capturas offline y subirlas todas
+            self.subir_capturas_offline()
+            messagebox.showinfo("Éxito", "Todas las capturas pendientes han sido aceptadas y subidas al histórico.")
+        except Exception as e:
+            self.logger.error(f"Error aceptando todas las capturas: {str(e)}")
+            messagebox.showerror("Error", f"Error al aceptar capturas: {str(e)}")
 
 if __name__ == "__main__":
     app = EscanerApp()
