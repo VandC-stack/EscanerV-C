@@ -397,7 +397,7 @@ class MainWindow:
         if self.rol == "admin":
             self.tabview.add("Configuración")
             self._configurar_tab_configuracion(self.tabview.tab("Configuración"))
-    
+        
     def _configurar_tab_gestion_usuarios(self, parent):
         """Configura la pestaña de gestión de usuarios para superadmin"""
         main_frame = ct.CTkFrame(parent, fg_color="#000000")
@@ -842,7 +842,7 @@ class MainWindow:
         # Mostrar/ocultar motivo según selección de cumple
         def on_cumple_change(*args):
             if self.cumple_captura_var.get() == "NO CUMPLE":
-                self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
+        self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
             else:
                 self.motivo_captura_menu.pack_forget()
         self.cumple_captura_var.trace_add('write', on_cumple_change)
@@ -1052,7 +1052,7 @@ class MainWindow:
                     text="El motivo es obligatorio si el resultado es NO CUMPLE.",
                     text_color="#FF3333"
                 )
-                return
+            return
         
         # Limpiar códigos
         codigo_limpio = Validators.limpiar_codigo_barras(codigo)
@@ -2249,7 +2249,11 @@ class MainWindow:
                         foreground="#00FFAA",
                         font=("Segoe UI", 12, "bold"))
         style.map('Treeview', background=[('selected', '#222222')])
-        tree = ttk.Treeview(frame, columns=columnas, show="headings", style="Treeview")
+        # Scrollbar vertical
+        tree_scroll = ttk.Scrollbar(frame, orient="vertical")
+        tree_scroll.pack(side="right", fill="y")
+        tree = ttk.Treeview(frame, columns=columnas, show="headings", style="Treeview", selectmode="extended", yscrollcommand=tree_scroll.set)
+        tree_scroll.config(command=tree.yview)
         for col in columnas:
             tree.heading(col, text=col)
             tree.column(col, width=120, anchor="center")
@@ -2287,6 +2291,37 @@ class MainWindow:
                 pk_val = tree.item(item)['values'][0]
                 self.db_manager.delete_one(tabla, {pk_col: pk_val})
                 tree.delete(item)
+        # Solo para la tabla de capturas: aceptar/denegar seleccionadas
+        if tabla == "capturas":
+            def aceptar_seleccionadas():
+                sel = tree.selection()
+                if not sel:
+                    messagebox.showwarning("Sin selección", "Selecciona al menos una captura para aceptar.")
+                    return
+                ids = [tree.item(item)['values'][0] for item in sel]
+                # Lógica real: mover capturas al histórico
+                resultado = self.captura_model.mover_capturas_a_historico(ids)
+                for item in sel:
+                    tree.delete(item)
+                messagebox.showinfo("Éxito", f"Capturas aceptadas y movidas al histórico.\nProcesadas: {resultado['procesados']}\nActualizadas: {resultado['actualizados']}")
+            def denegar_seleccionadas():
+                sel = tree.selection()
+                if not sel:
+                    messagebox.showwarning("Sin selección", "Selecciona al menos una captura para denegar.")
+                    return
+                pk_col = columnas[0]
+                for item in sel:
+                    pk_val = tree.item(item)['values'][0]
+                    self.db_manager.delete_one(tabla, {pk_col: pk_val})
+                    tree.delete(item)
+                messagebox.showinfo("Denegadas", "Capturas denegadas correctamente.")
+            btns_frame = ct.CTkFrame(frame, fg_color="#000000")
+            btns_frame.pack(fill="x", pady=5)
+            btn_aceptar = ct.CTkButton(btns_frame, text="Aceptar seleccionadas", command=aceptar_seleccionadas, fg_color="#00FFAA", text_color="#000000", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#00FFAA", corner_radius=10)
+            btn_aceptar.pack(side="left", padx=10)
+            btn_denegar = ct.CTkButton(btns_frame, text="Denegar seleccionadas", command=denegar_seleccionadas, fg_color="#FF3333", text_color="#FFFFFF", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#FF3333", corner_radius=10)
+            btn_denegar.pack(side="left", padx=10)
+        else:
         btn_eliminar = ct.CTkButton(frame, text="Eliminar seleccionado", command=eliminar, fg_color="#FF3333", text_color="#FFFFFF", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#FF3333", corner_radius=10)
         btn_eliminar.pack(pady=5)
     
