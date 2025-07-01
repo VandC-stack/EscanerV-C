@@ -6,13 +6,13 @@ import sys
 import threading
 from datetime import datetime
 import time
-import json
 import logging
 from typing import Dict, List, Optional
 import pandas as pd
 import re
 import math
 import hashlib
+import json
 
 # Configuración de la aplicación
 ct.set_appearance_mode("dark")
@@ -754,9 +754,9 @@ class MainWindow:
             messagebox.showerror("Error", f"Error al actualizar índice: {str(e)}")
     
     def _configurar_tab_captura(self, parent):
-        # Scrollable frame principal
-        main_frame = ct.CTkScrollableFrame(parent, fg_color="#000000")
-        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        # Scrollable frame principal con mejor configuración
+        main_frame = ct.CTkScrollableFrame(parent, fg_color="#000000", width=800, height=600)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
         # Título
         ct.CTkLabel(
@@ -765,6 +765,22 @@ class MainWindow:
             font=("Segoe UI", 18, "bold"), 
             text_color="#00FFAA"
         ).pack(pady=(0, 20))
+        
+        # Botón para subir capturas pendientes (solo admin y captura) ANTES de los campos
+        if self.rol in ["admin", "captura"]:
+            self.subir_pendientes_btn = ct.CTkButton(
+                main_frame,
+                text="Subir capturas pendientes",
+                command=self.subir_capturas_offline,
+                font=("Segoe UI", 12, "bold"),
+                fg_color="#00FFAA",
+                text_color="#000000",
+                border_width=2,
+                border_color="#00FFAA",
+                corner_radius=10
+            )
+            self.subir_pendientes_btn.pack(pady=(0, 10))
+            self._actualizar_estado_pendientes()
         
         # Variables
         self.codigo_captura_var = StringVar()
@@ -820,34 +836,6 @@ class MainWindow:
         )
         self.item_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
         
-        # Motivo solo si NO CUMPLE
-        motivo_options = [
-            "Instrucciones de cuidado",
-            "Insumos",
-            "Pais de origen",
-            "Talla",
-            "Importador",
-            "Marca"
-        ]
-        self.motivo_captura_menu = ct.CTkOptionMenu(
-            main_frame,
-            variable=self.motivo_captura_var,
-            values=motivo_options,
-            fg_color="#000000",
-            text_color="#00FFAA",
-            font=("Segoe UI", 13),
-            width=400,
-            height=36
-        )
-        # Mostrar/ocultar motivo según selección de cumple
-        def on_cumple_change(*args):
-            if self.cumple_captura_var.get() == "NO CUMPLE":
-        self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
-            else:
-                self.motivo_captura_menu.pack_forget()
-        self.cumple_captura_var.trace_add('write', on_cumple_change)
-        on_cumple_change()
-        
         # Cumple/No cumple
         ct.CTkLabel(
             campos_frame, 
@@ -868,21 +856,46 @@ class MainWindow:
         )
         self.cumple_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
         
-        # Usuario (oculto)
-        # self.usuario_captura_entry = ct.CTkEntry(
-        #     campos_frame, 
-        #     state="readonly",
-        #     font=("Segoe UI", 13),
-        #     width=400,
-        #     height=36,
-        #     corner_radius=12,
-        #     border_width=2,
-        #     border_color="#00FFAA",
-        #     fg_color="#000000",
-        #     text_color="#00FFAA"
-        # )
-        # self.usuario_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
-        # self.usuario_captura_entry.insert(0, self.usuario)
+        # Motivo solo si NO CUMPLE (movido al campos_frame)
+        motivo_options = [
+            "Instrucciones de cuidado",
+            "Insumos",
+            "Pais de origen",
+            "Talla",
+            "Importador",
+            "Marca"
+        ]
+        
+        # Label para motivo
+        self.motivo_label = ct.CTkLabel(
+            campos_frame, 
+            text="Motivo:", 
+            text_color="#00FFAA", 
+            font=("Segoe UI", 13, "bold")
+        )
+        
+        self.motivo_captura_menu = ct.CTkOptionMenu(
+            campos_frame,
+            variable=self.motivo_captura_var,
+            values=motivo_options,
+            fg_color="#000000",
+            text_color="#00FFAA",
+            font=("Segoe UI", 13),
+            width=400,
+            height=36
+        )
+        
+        # Mostrar/ocultar motivo según selección de cumple
+        def on_cumple_change(*args):
+            if self.cumple_captura_var.get() == "NO CUMPLE":
+                self.motivo_label.pack(anchor="w", padx=10, pady=(10, 0))
+                self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
+            else:
+                self.motivo_label.pack_forget()
+                self.motivo_captura_menu.pack_forget()
+        
+        self.cumple_captura_var.trace_add('write', on_cumple_change)
+        on_cumple_change()
         
         # Estado label
         self.estado_captura_label = ct.CTkLabel(
@@ -895,9 +908,11 @@ class MainWindow:
         
         # Estadísticas de capturas
         self._crear_estadisticas_captura(main_frame)
+        
         # Botones de acción centrados justo después de los campos
         botones_captura_frame = ct.CTkFrame(main_frame, fg_color="#000000")
         botones_captura_frame.pack(anchor="center", pady=20)
+        
         self.guardar_captura_btn = ct.CTkButton(
             botones_captura_frame, 
             text="Guardar Captura", 
@@ -913,6 +928,7 @@ class MainWindow:
             height=36
         )
         self.guardar_captura_btn.pack(side="left", padx=(0, 10), pady=0)
+        
         self.descargar_captura_btn = ct.CTkButton(
             botones_captura_frame, 
             text="Descargar Datos", 
@@ -928,6 +944,7 @@ class MainWindow:
             height=36
         )
         self.descargar_captura_btn.pack(side="left", padx=(0, 10), pady=0)
+        
         if self.rol == "admin":
             self.procesar_historico_btn = ct.CTkButton(
                 botones_captura_frame,
@@ -944,7 +961,7 @@ class MainWindow:
                 height=36
             )
             self.procesar_historico_btn.pack(side="left", padx=(0, 10), pady=0)
-        if self.rol == "admin":
+            
             self.borrar_capturas_btn = ct.CTkButton(
                 botones_captura_frame,
                 text="Borrar Datos",
@@ -960,22 +977,22 @@ class MainWindow:
                 height=36
             )
             self.borrar_capturas_btn.pack(side="left", padx=(0, 10), pady=0)
-        if self.rol == "superadmin":
-            self.aceptar_todas_btn = ct.CTkButton(
-                botones_captura_frame,
-                text="Aceptar todas las capturas pendientes",
-                command=self.aceptar_todas_capturas_pendientes,
-                font=("Segoe UI", 14, "bold"),
+        
+        # Botón para subir capturas pendientes (solo admin y captura)
+        if self.rol in ["admin", "captura"]:
+            self.subir_pendientes_btn = ct.CTkButton(
+                parent,
+                text="Subir capturas pendientes",
+                command=self.subir_capturas_offline,
+                font=("Segoe UI", 12, "bold"),
                 fg_color="#00FFAA",
-                hover_color="#111111",
+                text_color="#000000",
                 border_width=2,
                 border_color="#00FFAA",
-                text_color="#000000",
-                corner_radius=12,
-                width=260,
-                height=36
+                corner_radius=10
             )
-            self.aceptar_todas_btn.pack(side="left", padx=(0, 10), pady=0)
+            self.subir_pendientes_btn.pack(pady=(0, 10))
+            self._actualizar_estado_pendientes()
     
     def _crear_estadisticas_captura(self, parent):
         """Crea las estadísticas de capturas"""
@@ -1052,7 +1069,7 @@ class MainWindow:
                     text="El motivo es obligatorio si el resultado es NO CUMPLE.",
                     text_color="#FF3333"
                 )
-            return
+                return
         
         # Limpiar códigos
         codigo_limpio = Validators.limpiar_codigo_barras(codigo)
@@ -1077,10 +1094,15 @@ class MainWindow:
                 self.logger.log_user_action(self.usuario, f"Captura guardada: {codigo}")
             else:
                 self.master.after(0, lambda: self._mostrar_error_captura("Captura duplicada o error al guardar"))
-                
         except Exception as e:
             self.logger.error(f"Error guardando captura: {str(e)}")
-            self.master.after(0, lambda: self._mostrar_error_captura(str(e)))
+            # Persistencia offline si es admin o captura
+            if self.rol in ["admin", "captura"]:
+                self._guardar_captura_offline(codigo, item, motivo, cumple)
+                self.master.after(0, lambda: self._mostrar_error_captura("Sin conexión. Captura guardada localmente. Sube tus capturas pendientes cuando tengas internet."))
+                self.master.after(0, self._actualizar_estado_pendientes)
+            else:
+                self.master.after(0, lambda: self._mostrar_error_captura(str(e)))
         finally:
             self.master.after(0, lambda: self._restaurar_boton_captura())
     
@@ -2162,7 +2184,7 @@ class MainWindow:
                 ).pack(pady=10)
                 return
             
-            # Crear elementos del historial
+            #Crear elementos del historial
             for actualizacion in historial:
                 self._crear_elemento_historial(actualizacion)
                 
@@ -2293,37 +2315,81 @@ class MainWindow:
                 tree.delete(item)
         # Solo para la tabla de capturas: aceptar/denegar seleccionadas
         if tabla == "capturas":
+            # Elimina cualquier tabla de solo lectura superior (no crearla)
+            # Solo crea la tabla editable con columna de selección y botones
+            for widget in parent.winfo_children():
+                widget.destroy()
+            frame = ct.CTkFrame(parent, fg_color="#000000", border_width=2, border_color="#00FFAA")
+            frame.pack(fill="both", expand=True, padx=10, pady=10)
+            columnas_con_seleccion = ["Seleccionar"] + columnas
+            tree = ttk.Treeview(frame, columns=columnas_con_seleccion, show="headings", style="Treeview", selectmode="extended")
+            for col in columnas_con_seleccion:
+                tree.heading(col, text=col)
+                tree.column(col, width=120, anchor="center")
+            for row in datos:
+                tree.insert("", "end", values=["No"] + [row[col] for col in columnas])
+            # Scrollbars
+            tree_scroll_y = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+            tree_scroll_x = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview)
+            tree.configure(yscrollcommand=tree_scroll_y.set, xscrollcommand=tree_scroll_x.set)
+            tree.pack(fill="both", expand=True)
+            tree_scroll_y.pack(side="right", fill="y")
+            tree_scroll_x.pack(side="bottom", fill="x")
+            # Evento para alternar selección al hacer doble clic en la columna 'Seleccionar'
+            def alternar_seleccion(event):
+                item = tree.identify_row(event.y)
+                col = tree.identify_column(event.x)
+                if col == "#1" and item:
+                    current = tree.set(item, "Seleccionar")
+                    nuevo = "Sí" if current == "No" else "No"
+                    tree.set(item, "Seleccionar", nuevo)
+            tree.bind('<Double-1>', alternar_seleccion)
+            # Frame fijo para los botones debajo de la tabla
+            botones_frame = ct.CTkFrame(parent, fg_color="#000000")
+            botones_frame.pack(fill="x", pady=5)
+            # Botón seleccionar todo
+            def seleccionar_todo():
+                for item in tree.get_children():
+                    tree.set(item, "Seleccionar", "Sí")
+            btn_seleccionar_todo = ct.CTkButton(botones_frame, text="Seleccionar todo", command=seleccionar_todo, fg_color="#00FFAA", text_color="#000000", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#00FFAA", corner_radius=10)
+            btn_seleccionar_todo.pack(side="left", padx=10, pady=5)
+            # Botón aceptar seleccionadas
             def aceptar_seleccionadas():
-                sel = tree.selection()
-                if not sel:
+                ids = []
+                for item in tree.get_children():
+                    if tree.set(item, "Seleccionar") == "Sí":
+                        ids.append(tree.item(item)['values'][1])  # id está en la segunda columna ahora
+                if not ids:
                     messagebox.showwarning("Sin selección", "Selecciona al menos una captura para aceptar.")
                     return
-                ids = [tree.item(item)['values'][0] for item in sel]
-                # Lógica real: mover capturas al histórico
                 resultado = self.captura_model.mover_capturas_a_historico(ids)
-                for item in sel:
-                    tree.delete(item)
+                for item in tree.get_children():
+                    if tree.set(item, "Seleccionar") == "Sí":
+                        tree.delete(item)
                 messagebox.showinfo("Éxito", f"Capturas aceptadas y movidas al histórico.\nProcesadas: {resultado['procesados']}\nActualizadas: {resultado['actualizados']}")
+            btn_aceptar = ct.CTkButton(botones_frame, text="Aceptar seleccionadas", command=aceptar_seleccionadas, fg_color="#00FFAA", text_color="#000000", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#00FFAA", corner_radius=10)
+            btn_aceptar.pack(side="left", padx=10, pady=5)
+            # Botón denegar seleccionadas
             def denegar_seleccionadas():
-                sel = tree.selection()
-                if not sel:
+                ids = []
+                for item in tree.get_children():
+                    if tree.set(item, "Seleccionar") == "Sí":
+                        ids.append(tree.item(item)['values'][1])
+                if not ids:
                     messagebox.showwarning("Sin selección", "Selecciona al menos una captura para denegar.")
                     return
                 pk_col = columnas[0]
-                for item in sel:
-                    pk_val = tree.item(item)['values'][0]
-                    self.db_manager.delete_one(tabla, {pk_col: pk_val})
-                    tree.delete(item)
+                for item in tree.get_children():
+                    if tree.set(item, "Seleccionar") == "Sí":
+                        pk_val = tree.item(item)['values'][1]
+                        self.db_manager.delete_one(tabla, {pk_col: pk_val})
+                        tree.delete(item)
                 messagebox.showinfo("Denegadas", "Capturas denegadas correctamente.")
-            btns_frame = ct.CTkFrame(frame, fg_color="#000000")
-            btns_frame.pack(fill="x", pady=5)
-            btn_aceptar = ct.CTkButton(btns_frame, text="Aceptar seleccionadas", command=aceptar_seleccionadas, fg_color="#00FFAA", text_color="#000000", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#00FFAA", corner_radius=10)
-            btn_aceptar.pack(side="left", padx=10)
-            btn_denegar = ct.CTkButton(btns_frame, text="Denegar seleccionadas", command=denegar_seleccionadas, fg_color="#FF3333", text_color="#FFFFFF", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#FF3333", corner_radius=10)
-            btn_denegar.pack(side="left", padx=10)
+            btn_denegar = ct.CTkButton(botones_frame, text="Denegar seleccionadas", command=denegar_seleccionadas, fg_color="#FF3333", text_color="#FFFFFF", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#FF3333", corner_radius=10)
+            btn_denegar.pack(side="left", padx=10, pady=5)
         else:
-        btn_eliminar = ct.CTkButton(frame, text="Eliminar seleccionado", command=eliminar, fg_color="#FF3333", text_color="#FFFFFF", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#FF3333", corner_radius=10)
-        btn_eliminar.pack(pady=5)
+            btn_eliminar = ct.CTkButton(frame, text="Eliminar seleccionado", command=eliminar, fg_color="#FF3333", text_color="#FFFFFF", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#FF3333", corner_radius=10)
+            btn_eliminar.pack(pady=5)
     
     def gestionar_actualizaciones(self):
         # Método vacío para evitar error de atributo
@@ -2373,13 +2439,86 @@ class MainWindow:
     def aceptar_todas_capturas_pendientes(self):
         # Lógica para aceptar todas las capturas pendientes de otros usuarios
         try:
-            # Aquí deberías implementar la lógica para procesar todas las capturas pendientes
-            # Por ejemplo, recorrer capturas offline y subirlas todas
             self.subir_capturas_offline()
             messagebox.showinfo("Éxito", "Todas las capturas pendientes han sido aceptadas y subidas al histórico.")
         except Exception as e:
             self.logger.error(f"Error aceptando todas las capturas: {str(e)}")
             messagebox.showerror("Error", f"Error al aceptar capturas: {str(e)}")
+    
+    def _guardar_captura_offline(self, codigo, item, motivo, cumple):
+        """Guarda la captura localmente en un archivo JSON por usuario"""
+        ruta = f"capturas_pendientes_{self.usuario}.json"
+        captura = {
+            "codigo": codigo,
+            "item": item,
+            "motivo": motivo,
+            "cumple": cumple,
+            "usuario": self.usuario
+        }
+        try:
+            capturas = []
+            try:
+                with open(ruta, "r", encoding="utf-8") as f:
+                    capturas = json.load(f)
+            except Exception:
+                pass
+            capturas.append(captura)
+            with open(ruta, "w", encoding="utf-8") as f:
+                json.dump(capturas, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            self.logger.error(f"Error guardando captura offline: {str(e)}")
+    
+    def subir_capturas_offline(self):
+        """Sube las capturas pendientes del archivo local a la base de datos"""
+        import os
+        ruta = f"capturas_pendientes_{self.usuario}.json"
+        if not os.path.exists(ruta):
+            messagebox.showinfo("Sin capturas pendientes", "No hay capturas pendientes para subir.")
+            return
+        try:
+            with open(ruta, "r", encoding="utf-8") as f:
+                capturas = json.load(f)
+            subidas = 0
+            for cap in capturas:
+                try:
+                    if self.captura_model.guardar_captura(cap["codigo"], cap["item"], cap["motivo"], cap["cumple"], cap["usuario"]):
+                        subidas += 1
+                except Exception as e:
+                    self.logger.error(f"Error subiendo captura offline: {str(e)}")
+            if subidas > 0:
+                os.remove(ruta)
+                messagebox.showinfo("Éxito", f"{subidas} capturas subidas correctamente.")
+            else:
+                messagebox.showwarning("Sin conexión", "No se pudo subir ninguna captura. Intenta de nuevo más tarde.")
+        except Exception as e:
+            self.logger.error(f"Error leyendo capturas offline: {str(e)}")
+            messagebox.showerror("Error", f"Error leyendo capturas pendientes: {str(e)}")
+        self._actualizar_estado_pendientes()
+    
+    def _actualizar_estado_pendientes(self):
+        """Actualiza la visibilidad del botón de subir capturas pendientes"""
+        import os
+        ruta = f"capturas_pendientes_{self.usuario}.json"
+        if hasattr(self, "subir_pendientes_btn"):
+            if os.path.exists(ruta):
+                try:
+                    with open(ruta, "r", encoding="utf-8") as f:
+                        capturas = json.load(f)
+                    num_capturas = len(capturas)
+                    self.subir_pendientes_btn.configure(
+                        state="normal", 
+                        text=f"Subir capturas pendientes ({num_capturas})"
+                    )
+                except Exception:
+                    self.subir_pendientes_btn.configure(
+                        state="normal", 
+                        text="Subir capturas pendientes"
+                    )
+            else:
+                self.subir_pendientes_btn.configure(
+                    state="disabled", 
+                    text="No hay capturas pendientes"
+                )
 
 if __name__ == "__main__":
     app = EscanerApp()
