@@ -91,4 +91,3 @@ CREATE TABLE IF NOT EXISTS configuracion (
 
 ---
 
-¿Te gustaría que te agregue ejemplos de inserción de datos por defecto (como el usuario admin) o alguna tabla adicional?
