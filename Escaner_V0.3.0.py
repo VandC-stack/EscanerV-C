@@ -34,14 +34,13 @@ from config.database import DatabaseManager
 from models.usuario import Usuario
 from models.codigo_item import CodigoItem
 from models.captura import Captura
-from services.updater import UpdaterService
 from utils.logger import AppLogger
 from utils.validators import Validators
 
 class EscanerApp:
     def __init__(self):
         self.root = ct.CTk()
-        self.root.title("Escáner de Códigos V&C v3.0.0")
+        self.root.title("Escáner V&C v3.0.0")
         self.root.geometry("1000x800")
         self.root.resizable(True, True)
         
@@ -51,7 +50,6 @@ class EscanerApp:
         self.usuario_model = None
         self.codigo_model = None
         self.captura_model = None
-        self.updater = None
         
         # Variables de estado
         self.usuario_actual = None
@@ -80,9 +78,6 @@ class EscanerApp:
             self.usuario_model = Usuario(self.db_manager)
             self.codigo_model = CodigoItem(self.db_manager)
             self.captura_model = Captura(self.db_manager)
-            
-            # Inicializar updater
-            self.updater = UpdaterService()  # Solo URL base opcional
             
             # Cargar configuración
             self.cargar_configuracion()
@@ -124,53 +119,8 @@ class EscanerApp:
         
         self.logger.log_user_action(usuario, "Login exitoso")
         
-        # Verificar actualizaciones automáticamente
-        # if self.updater.auto_update_enabled(self.db_manager):
-        #     threading.Thread(target=self.verificar_actualizaciones, daemon=True).start()
-        
         # Mostrar ventana principal
         self.mostrar_ventana_principal()
-    
-    def verificar_actualizaciones(self):
-        """Verifica actualizaciones disponibles"""
-        try:
-            update_info = self.updater.verificar_actualizacion()
-            if update_info:
-                self.root.after(0, lambda: self.mostrar_dialogo_actualizacion(update_info))
-        except Exception as e:
-            self.logger.error(f"Error verificando actualizaciones: {str(e)}")
-    
-    def mostrar_dialogo_actualizacion(self, update_info: Dict):
-        """Muestra diálogo de actualización disponible"""
-        respuesta = messagebox.askyesno(
-            "Actualización Disponible",
-            f"Hay una nueva versión disponible: {update_info['version']}\n\n"
-            f"Descripción: {update_info['descripcion']}\n\n"
-            "¿Desea actualizar ahora?"
-        )
-        
-        if respuesta:
-            self.instalar_actualizacion(update_info)
-    
-    def instalar_actualizacion(self, update_info: Dict):
-        """Instala la actualización"""
-        try:
-            # Descargar actualización
-            file_path = self.updater.download_update(update_info['url_descarga'], update_info['version'])
-            
-            if file_path:
-                # Instalar actualización
-                if self.updater.install_update(file_path):
-                    messagebox.showinfo("Éxito", "Actualización instalada. La aplicación se reiniciará.")
-                    self.updater.restart_application()
-                else:
-                    messagebox.showerror("Error", "Error al instalar la actualización.")
-            else:
-                messagebox.showerror("Error", "Error al descargar la actualización.")
-                
-        except Exception as e:
-            self.logger.error(f"Error instalando actualización: {str(e)}")
-            messagebox.showerror("Error", f"Error al instalar actualización: {str(e)}")
     
     def mostrar_ventana_principal(self):
         """Muestra la ventana principal de la aplicación"""
@@ -183,7 +133,6 @@ class EscanerApp:
             self.rol_actual,
             self.codigo_model,
             self.captura_model,
-            self.updater,
             self.logger,
             self.config_data,
             self.usuario_model,
@@ -338,13 +287,12 @@ class LoginWindow:
             pass  # Widget ya destruido
 
 class MainWindow:
-    def __init__(self, master, usuario, rol, codigo_model, captura_model, updater, logger, config_data, usuario_model, db_manager):
+    def __init__(self, master, usuario, rol, codigo_model, captura_model, logger, config_data, usuario_model, db_manager):
         self.master = master
         self.usuario = usuario
         self.rol = rol
         self.codigo_model = codigo_model
         self.captura_model = captura_model
-        self.updater = updater
         self.logger = logger
         self.config_data = config_data
         self.usuario_model = usuario_model
@@ -511,7 +459,7 @@ class MainWindow:
         # Título
         ct.CTkLabel(
             parent, 
-            text="Escáner de Códigos", 
+            text="Escáner V&C", 
             font=("Segoe UI", 22, "bold"), 
             text_color="#00FFAA", 
             fg_color="#000000"
@@ -559,12 +507,12 @@ class MainWindow:
             wraplength=500
         )
         self.resultado_valor.pack(pady=(0, 0))
-        
+        # NOM oculta por el momento porque me da flojera revisar la logica
         self.nom_valor = ct.CTkLabel(
             parent, 
             text="NOM: ", 
             font=("Segoe UI", 12, "italic"), 
-            text_color="#55DDFF", 
+            text_color="#000000", 
             fg_color="#000000", 
             wraplength=500
         )
@@ -813,6 +761,9 @@ class MainWindow:
             text_color="#00FFAA"
         )
         self.codigo_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
+        
+        # Evento para buscar automáticamente el item cuando se ingresa un código
+        self.codigo_captura_var.trace_add('write', self._buscar_item_automatico)
         
         # Item
         ct.CTkLabel(
@@ -1320,79 +1271,6 @@ class MainWindow:
             height=36
         ).pack(pady=5, padx=20, anchor="w")
         
-        # Frame para configuración de actualizaciones
-        actualizaciones_frame = ct.CTkFrame(main_frame, fg_color="#000000")
-        actualizaciones_frame.pack(fill="x", pady=(0, 20))
-        
-        ct.CTkLabel(
-            actualizaciones_frame, 
-            text="Configuración de Actualizaciones", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 14, "bold")
-        ).pack(anchor="w", padx=20, pady=(10, 0))
-        
-        # URL de actualizaciones
-        self.url_actualizaciones_var = StringVar(value=self.config_data.get("url_actualizaciones", "http://localhost:8000/updates"))
-        
-        ct.CTkLabel(
-            actualizaciones_frame, 
-            text="URL de Actualizaciones:", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 12, "bold")
-        ).pack(anchor="w", padx=20, pady=(5, 0))
-        
-        self.url_actualizaciones_entry = ct.CTkEntry(
-            actualizaciones_frame,
-            textvariable=self.url_actualizaciones_var,
-            font=("Segoe UI", 12),
-            width=400,
-            height=32,
-            corner_radius=8,
-            border_width=2,
-            border_color="#00FFAA",
-            fg_color="#000000",
-            text_color="#00FFAA"
-        )
-        self.url_actualizaciones_entry.pack(anchor="w", padx=20, pady=(0, 10))
-        
-        # Auto-actualización
-        self.auto_actualizar_var = StringVar(value=self.config_data.get("auto_actualizar", "true"))
-        
-        ct.CTkLabel(
-            actualizaciones_frame, 
-            text="Actualizaciones Automáticas:", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 12, "bold")
-        ).pack(anchor="w", padx=20, pady=(5, 0))
-        
-        self.auto_actualizar_menu = ct.CTkOptionMenu(
-            actualizaciones_frame,
-            variable=self.auto_actualizar_var,
-            values=["true", "false"],
-            fg_color="#000000",
-            text_color="#00FFAA",
-            font=("Segoe UI", 12),
-            width=200,
-            height=32
-        )
-        self.auto_actualizar_menu.pack(anchor="w", padx=20, pady=(0, 10))
-        
-        # Botón guardar configuración
-        ct.CTkButton(
-            actualizaciones_frame,
-            text="Guardar Configuración",
-            command=self.guardar_configuracion,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#000000",
-            hover_color="#111111",
-            border_width=2,
-            border_color="#00FFAA",
-            text_color="#00FFAA",
-            corner_radius=12,
-            width=200,
-            height=36
-        ).pack(pady=10, padx=20, anchor="w")
-        
         # Frame para gestión de usuarios (solo superadmin)
         if self.rol == "superadmin":
             self._crear_gestion_usuarios(main_frame)
@@ -1846,555 +1724,6 @@ class MainWindow:
             self.logger.error(f"Error creando usuario: {str(e)}")
             messagebox.showerror("Error", f"Error al crear usuario: {str(e)}")
     
-    def _configurar_tab_actualizaciones(self, parent):
-        """Configura la pestaña de actualizaciones"""
-        # Frame principal
-        main_frame = ct.CTkFrame(parent, fg_color="#000000")
-        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
-        
-        # Título
-        ct.CTkLabel(
-            main_frame, 
-            text="Sistema de Actualizaciones", 
-            font=("Segoe UI", 22, "bold"), 
-            text_color="#00FFAA"
-        ).pack(pady=(0, 20))
-        
-        # Información de versión actual
-        self._crear_info_version(main_frame)
-        
-        # Estado de actualizaciones
-        self._crear_estado_actualizaciones(main_frame)
-        
-        # No mostrar botones de control aquí
-        # Historial de actualizaciones
-        self._crear_historial_actualizaciones(main_frame)
-    
-    def _crear_info_version(self, parent):
-        """Crea la información de versión actual"""
-        info_frame = ct.CTkFrame(parent, fg_color="#000000")
-        info_frame.pack(fill="x", pady=(0, 20))
-        
-        ct.CTkLabel(
-            info_frame, 
-            text="Información de Versión", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 14, "bold")
-        ).pack(anchor="w", padx=20, pady=(10, 0))
-        
-        # Versión actual
-        self.version_actual_label = ct.CTkLabel(
-            info_frame,
-            text=f"Versión actual: {VERSION_ACTUAL}",
-            text_color="#00FFAA",
-            font=("Segoe UI", 12)
-        )
-        self.version_actual_label.pack(anchor="w", padx=20, pady=2)
-        
-        # Fecha de compilación
-        self.fecha_compilacion_label = ct.CTkLabel(
-            info_frame,
-            text=f"Fecha de compilación: {FECHA_COMPILACION}",
-            text_color="#00FFAA",
-            font=("Segoe UI", 12)
-        )
-        self.fecha_compilacion_label.pack(anchor="w", padx=20, pady=2)
-        
-        # Última verificación
-        self.ultima_verificacion_label = ct.CTkLabel(
-            info_frame,
-            text="Última verificación: Nunca",
-            text_color="#00FFAA",
-            font=("Segoe UI", 12)
-        )
-        self.ultima_verificacion_label.pack(anchor="w", padx=20, pady=2)
-    
-    def _crear_estado_actualizaciones(self, parent):
-        """Crea el estado de actualizaciones"""
-        estado_frame = ct.CTkFrame(parent, fg_color="#000000")
-        estado_frame.pack(fill="x", pady=(0, 20))
-        
-        ct.CTkLabel(
-            estado_frame, 
-            text="Estado de Actualizaciones", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 14, "bold")
-        ).pack(anchor="w", padx=20, pady=(10, 0))
-        
-        # Estado actual
-        self.estado_actualizacion_label = ct.CTkLabel(
-            estado_frame,
-            text="Estado: Sin verificar",
-            text_color="#55DDFF",
-            font=("Segoe UI", 12, "bold")
-        )
-        self.estado_actualizacion_label.pack(anchor="w", padx=20, pady=2)
-        
-        # Versión disponible
-        self.version_disponible_label = ct.CTkLabel(
-            estado_frame,
-            text="Versión disponible: -",
-            text_color="#55DDFF",
-            font=("Segoe UI", 12)
-        )
-        self.version_disponible_label.pack(anchor="w", padx=20, pady=2)
-        
-        # Tamaño de descarga
-        self.tamaño_descarga_label = ct.CTkLabel(
-            estado_frame,
-            text="Tamaño: -",
-            text_color="#55DDFF",
-            font=("Segoe UI", 12)
-        )
-        self.tamaño_descarga_label.pack(anchor="w", padx=20, pady=2)
-        
-        # Barra de progreso
-        self.progress_actualizacion = ct.CTkProgressBar(
-            estado_frame,
-            width=400,
-            height=16,
-            corner_radius=8,
-            progress_color="#00FFAA"
-        )
-        self.progress_actualizacion.set(0)
-        self.progress_actualizacion.pack(anchor="w", padx=20, pady=(5, 10))
-        
-        # Label de progreso
-        self.progress_label_actualizacion = ct.CTkLabel(
-            estado_frame,
-            text="",
-            text_color="#00FFAA",
-            font=("Segoe UI", 10)
-        )
-        self.progress_label_actualizacion.pack(anchor="w", padx=20, pady=(0, 10))
-    
-    def _crear_historial_actualizaciones(self, parent):
-        """Crea el historial de actualizaciones"""
-        historial_frame = ct.CTkFrame(parent, fg_color="#000000")
-        historial_frame.pack(fill="both", expand=True, pady=(0, 20))
-        
-        ct.CTkLabel(
-            historial_frame, 
-            text="Historial de Actualizaciones", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 14, "bold")
-        ).pack(anchor="w", padx=20, pady=(10, 0))
-        
-        # Frame para la lista
-        self.historial_frame = ct.CTkScrollableFrame(
-            historial_frame,
-            fg_color="#000000",
-            width=600,
-            height=200
-        )
-        self.historial_frame.pack(fill="both", expand=True, padx=20, pady=(10, 10))
-        
-        # Cargar historial inicial
-        self.cargar_historial_actualizaciones()
-    
-    def verificar_actualizaciones(self):
-        """Verifica si hay actualizaciones disponibles"""
-        # Deshabilitar botón durante verificación
-        self.verificar_btn.configure(state="disabled", text="Verificando...")
-        self.estado_actualizacion_label.configure(text="Estado: Verificando...", text_color="#FFAA00")
-        
-        # Ejecutar verificación en hilo separado
-        threading.Thread(target=self._ejecutar_verificacion, daemon=True).start()
-    
-    def _ejecutar_verificacion(self):
-        """Ejecuta la verificación de actualizaciones"""
-        try:
-            # Verificar actualización
-            resultado = self.updater.verificar_actualizacion()
-            
-            if resultado['hay_actualizacion']:
-                self.master.after(0, lambda: self._mostrar_actualizacion_disponible(resultado))
-            else:
-                self.master.after(0, lambda: self._mostrar_sin_actualizacion())
-                
-        except Exception as e:
-            self.logger.error(f"Error verificando actualizaciones: {str(e)}")
-            self.master.after(0, lambda: self._mostrar_error_verificacion(str(e)))
-        finally:
-            self.master.after(0, lambda: self._restaurar_boton_verificar())
-    
-    def _mostrar_actualizacion_disponible(self, resultado):
-        """Muestra que hay una actualización disponible"""
-        self.estado_actualizacion_label.configure(
-            text="Estado: Actualización disponible", 
-            text_color="#00FFAA"
-        )
-        self.version_disponible_label.configure(
-            text=f"Versión disponible: {resultado['version']}"
-        )
-        self.tamaño_descarga_label.configure(
-            text=f"Tamaño: {resultado['tamaño']}"
-        )
-        self.descargar_btn.configure(state="normal")
-        
-        # Actualizar última verificación
-        self.ultima_verificacion_label.configure(
-            text=f"Última verificación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-    
-    def _mostrar_sin_actualizacion(self):
-        """Muestra que no hay actualizaciones"""
-        self.estado_actualizacion_label.configure(
-            text="Estado: Sin actualizaciones disponibles", 
-            text_color="#55DDFF"
-        )
-        self.version_disponible_label.configure(text="Versión disponible: -")
-        self.tamaño_descarga_label.configure(text="Tamaño: -")
-        
-        # Actualizar última verificación
-        self.ultima_verificacion_label.configure(
-            text=f"Última verificación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-    
-    def _mostrar_error_verificacion(self, error):
-        """Muestra error en verificación"""
-        self.estado_actualizacion_label.configure(
-            text=f"Estado: Error - {error}", 
-            text_color="#FF3333"
-        )
-    
-    def _restaurar_boton_verificar(self):
-        """Restaura el botón de verificar"""
-        self.verificar_btn.configure(state="normal", text="Verificar Actualizaciones")
-    
-    def descargar_actualizacion(self):
-        """Descarga la actualización"""
-        # Deshabilitar botones
-        self.descargar_btn.configure(state="disabled", text="Descargando...")
-        self.cancelar_btn.configure(state="normal")
-        
-        # Mostrar progreso
-        self.progress_actualizacion.set(0)
-        self.progress_label_actualizacion.configure(text="Iniciando descarga...")
-        
-        # Ejecutar descarga en hilo separado
-        threading.Thread(target=self._ejecutar_descarga_actualizacion, daemon=True).start()
-    
-    def _ejecutar_descarga_actualizacion(self):
-        """Ejecuta la descarga de la actualización"""
-        try:
-            # Callback para actualizar progreso
-            def callback_progreso(progreso, mensaje):
-                self.master.after(0, lambda: self._actualizar_progreso(progreso, mensaje))
-            
-            # Descargar actualización
-            resultado = self.updater.descargar_actualizacion(callback_progreso)
-            
-            if resultado['exito']:
-                self.master.after(0, lambda: self._mostrar_descarga_completada())
-            else:
-                self.master.after(0, lambda: self._mostrar_error_descarga(resultado['error']))
-                
-        except Exception as e:
-            self.logger.error(f"Error descargando actualización: {str(e)}")
-            self.master.after(0, lambda: self._mostrar_error_descarga(str(e)))
-        finally:
-            self.master.after(0, lambda: self._restaurar_botones_descarga())
-    
-    def _actualizar_progreso(self, progreso, mensaje):
-        """Actualiza la barra de progreso"""
-        self.progress_actualizacion.set(progreso)
-        self.progress_label_actualizacion.configure(text=mensaje)
-    
-    def _mostrar_descarga_completada(self):
-        """Muestra que la descarga se completó"""
-        self.progress_actualizacion.set(1.0)
-        self.progress_label_actualizacion.configure(text="Descarga completada")
-        self.instalar_btn.configure(state="normal")
-        messagebox.showinfo("Éxito", "Actualización descargada correctamente")
-    
-    def _mostrar_error_descarga(self, error):
-        """Muestra error en descarga"""
-        self.progress_label_actualizacion.configure(text=f"Error: {error}")
-        messagebox.showerror("Error", f"Error al descargar: {error}")
-    
-    def _restaurar_botones_descarga(self):
-        """Restaura los botones de descarga"""
-        self.descargar_btn.configure(state="normal", text="Descargar Actualización")
-        self.cancelar_btn.configure(state="disabled")
-    
-    def instalar_actualizacion(self):
-        """Instala la actualización descargada"""
-        respuesta = messagebox.askyesno(
-            "Confirmar Instalación",
-            "¿Está seguro de que desea instalar la actualización?\n"
-            "La aplicación se cerrará durante la instalación."
-        )
-        
-        if respuesta:
-            try:
-                # Instalar actualización
-                resultado = self.updater.instalar_actualizacion()
-                
-                if resultado['exito']:
-                    messagebox.showinfo(
-                        "Instalación Completada", 
-                        "La actualización se instaló correctamente.\n"
-                        "La aplicación se reiniciará."
-                    )
-                    # Reiniciar aplicación
-                    self.master.after(2000, self._reiniciar_aplicacion)
-                else:
-                    messagebox.showerror("Error", f"Error al instalar: {resultado['error']}")
-                    
-            except Exception as e:
-                self.logger.error(f"Error instalando actualización: {str(e)}")
-                messagebox.showerror("Error", f"Error al instalar: {str(e)}")
-    
-    def cancelar_actualizacion(self):
-        """Cancela la actualización en curso"""
-        self.updater.cancelar_actualizacion()
-        self.progress_label_actualizacion.configure(text="Actualización cancelada")
-        self._restaurar_botones_descarga()
-    
-    def _reiniciar_aplicacion(self):
-        """Reinicia la aplicación"""
-        try:
-            # Guardar estado si es necesario
-            self.logger.log_user_action(self.usuario, "Aplicación reiniciada por actualización")
-            
-            # Reiniciar proceso
-            python = sys.executable
-            os.execl(python, python, *sys.argv)
-        except Exception as e:
-            self.logger.error(f"Error reiniciando aplicación: {str(e)}")
-            messagebox.showerror("Error", "Error al reiniciar la aplicación")
-    
-    def cargar_historial_actualizaciones(self):
-        """Carga el historial de actualizaciones"""
-        try:
-            # Limpiar historial actual
-            for widget in self.historial_frame.winfo_children():
-                widget.destroy()
-            
-            # Obtener historial
-            historial = self.updater.obtener_historial_actualizaciones()
-            
-            if not historial:
-                ct.CTkLabel(
-                    self.historial_frame,
-                    text="No hay historial de actualizaciones",
-                    text_color="#55DDFF",
-                    font=("Segoe UI", 11)
-                ).pack(pady=10)
-                return
-            
-            #Crear elementos del historial
-            for actualizacion in historial:
-                self._crear_elemento_historial(actualizacion)
-                
-        except Exception as e:
-            self.logger.error(f"Error cargando historial: {str(e)}")
-    
-    def _crear_elemento_historial(self, actualizacion):
-        """Crea un elemento del historial"""
-        elemento_frame = ct.CTkFrame(self.historial_frame, fg_color="#111111")
-        elemento_frame.pack(fill="x", pady=2, padx=5)
-        
-        # Información de la actualización
-        info_frame = ct.CTkFrame(elemento_frame, fg_color="#111111")
-        info_frame.pack(side="left", fill="x", expand=True, padx=5, pady=5)
-        
-        ct.CTkLabel(
-            info_frame,
-            text=f"Versión: {actualizacion['version']} | Fecha: {actualizacion['fecha']} | Estado: {actualizacion['estado']}",
-            text_color="#00FFAA",
-            font=("Segoe UI", 11)
-        ).pack(anchor="w")
-        
-        if actualizacion.get('descripcion'):
-            ct.CTkLabel(
-                info_frame,
-                text=f"Descripción: {actualizacion['descripcion']}",
-                text_color="#55DDFF",
-                font=("Segoe UI", 10)
-            ).pack(anchor="w")
-    
-    def verificar_actualizacion_automatica(self):
-        """Verifica actualizaciones automáticamente"""
-        if self.config_data.get("auto_actualizar", "true") == "true":
-            # Verificar cada 24 horas
-            if not hasattr(self, 'ultima_verificacion_auto') or \
-               (datetime.now() - self.ultima_verificacion_auto).total_seconds() > 86400:
-                
-                self.ultima_verificacion_auto = datetime.now()
-                threading.Thread(target=self._verificacion_automatica_silenciosa, daemon=True).start()
-    
-    def _verificacion_automatica_silenciosa(self):
-        """Realiza una verificación automática silenciosa"""
-        try:
-            resultado = self.updater.verificar_actualizacion()
-            
-            if resultado['hay_actualizacion']:
-                # Mostrar notificación
-                self.master.after(0, lambda: self._mostrar_notificacion_actualizacion(resultado))
-                
-        except Exception as e:
-            self.logger.error(f"Error en verificación automática: {str(e)}")
-    
-    def _mostrar_notificacion_actualizacion(self, resultado):
-        """Muestra notificación de actualización disponible"""
-        respuesta = messagebox.askyesno(
-            "Actualización Disponible",
-            f"Hay una nueva versión disponible: {resultado['version']}\n\n"
-            f"¿Desea descargarla ahora?"
-        )
-        
-        if respuesta:
-            # Cambiar a pestaña de actualizaciones
-            self.tabview.set("Actualizaciones")
-            # Iniciar descarga
-            self.descargar_actualizacion()
-    
-    def _mostrar_tabla_sql(self, parent, tabla):
-        from tkinter import ttk
-        import hashlib
-        frame = ct.CTkFrame(parent, fg_color="#000000", border_width=2, border_color="#00FFAA")
-        frame.pack(fill="both", expand=True, padx=10, pady=10)
-        datos = self.db_manager.execute_query(f"SELECT * FROM {tabla}")
-        columnas = list(datos[0].keys()) if datos else []
-        style = ttk.Style()
-        style.theme_use('default')
-        style.configure("Treeview",
-                        background="#000000",
-                        foreground="#00FFAA",
-                        rowheight=28,
-                        fieldbackground="#000000",
-                        font=("Segoe UI", 11))
-        style.configure("Treeview.Heading",
-                        background="#111111",
-                        foreground="#00FFAA",
-                        font=("Segoe UI", 12, "bold"))
-        style.map('Treeview', background=[('selected', '#222222')])
-        # Scrollbar vertical
-        tree_scroll = ttk.Scrollbar(frame, orient="vertical")
-        tree_scroll.pack(side="right", fill="y")
-        tree = ttk.Treeview(frame, columns=columnas, show="headings", style="Treeview", selectmode="extended", yscrollcommand=tree_scroll.set)
-        tree_scroll.config(command=tree.yview)
-        for col in columnas:
-            tree.heading(col, text=col)
-            tree.column(col, width=120, anchor="center")
-        for row in datos:
-            tree.insert("", "end", values=[row[col] for col in columnas])
-        tree.pack(fill="both", expand=True)
-        def editar_celda(event):
-            item = tree.selection()[0]
-            col = tree.identify_column(event.x)
-            col_idx = int(col.replace('#','')) - 1
-            old_value = tree.item(item)['values'][col_idx]
-            entry = ttk.Entry(frame, font=("Segoe UI", 11))
-            entry.insert(0, old_value)
-            entry.place(x=event.x_root-frame.winfo_rootx(), y=event.y_root-frame.winfo_rooty())
-            entry.focus_set()
-            def guardar(event=None):
-                nuevo_valor = entry.get()
-                tree.set(item, column=columnas[col_idx], value=nuevo_valor)
-                pk_col = columnas[0]
-                pk_val = tree.item(item)['values'][0]
-                valor_guardar = nuevo_valor
-                if tabla == "usuarios" and columnas[col_idx] == "contraseña":
-                    valor_guardar = hashlib.sha256(nuevo_valor.encode()).hexdigest()
-                self.db_manager.update_one(tabla, {columnas[col_idx]: valor_guardar}, {pk_col: pk_val})
-                entry.destroy()
-            entry.bind('<Return>', guardar)
-            entry.bind('<FocusOut>', lambda e: entry.destroy())
-        tree.bind('<Double-1>', editar_celda)
-        def eliminar():
-            sel = tree.selection()
-            if not sel:
-                return
-            pk_col = columnas[0]
-            for item in sel:
-                pk_val = tree.item(item)['values'][0]
-                self.db_manager.delete_one(tabla, {pk_col: pk_val})
-                tree.delete(item)
-        # Solo para la tabla de capturas: aceptar/denegar seleccionadas
-        if tabla == "capturas":
-            # Elimina cualquier tabla de solo lectura superior (no crearla)
-            # Solo crea la tabla editable con columna de selección y botones
-            for widget in parent.winfo_children():
-                widget.destroy()
-            frame = ct.CTkFrame(parent, fg_color="#000000", border_width=2, border_color="#00FFAA")
-            frame.pack(fill="both", expand=True, padx=10, pady=10)
-            columnas_con_seleccion = ["Seleccionar"] + columnas
-            tree = ttk.Treeview(frame, columns=columnas_con_seleccion, show="headings", style="Treeview", selectmode="extended")
-            for col in columnas_con_seleccion:
-                tree.heading(col, text=col)
-                tree.column(col, width=120, anchor="center")
-            for row in datos:
-                tree.insert("", "end", values=["No"] + [row[col] for col in columnas])
-            # Scrollbars
-            tree_scroll_y = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
-            tree_scroll_x = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview)
-            tree.configure(yscrollcommand=tree_scroll_y.set, xscrollcommand=tree_scroll_x.set)
-            tree.pack(fill="both", expand=True)
-            tree_scroll_y.pack(side="right", fill="y")
-            tree_scroll_x.pack(side="bottom", fill="x")
-            # Evento para alternar selección al hacer doble clic en la columna 'Seleccionar'
-            def alternar_seleccion(event):
-                item = tree.identify_row(event.y)
-                col = tree.identify_column(event.x)
-                if col == "#1" and item:
-                    current = tree.set(item, "Seleccionar")
-                    nuevo = "Sí" if current == "No" else "No"
-                    tree.set(item, "Seleccionar", nuevo)
-            tree.bind('<Double-1>', alternar_seleccion)
-            # Frame fijo para los botones debajo de la tabla
-            botones_frame = ct.CTkFrame(parent, fg_color="#000000")
-            botones_frame.pack(fill="x", pady=5)
-            # Botón seleccionar todo
-            def seleccionar_todo():
-                for item in tree.get_children():
-                    tree.set(item, "Seleccionar", "Sí")
-            btn_seleccionar_todo = ct.CTkButton(botones_frame, text="Seleccionar todo", command=seleccionar_todo, fg_color="#00FFAA", text_color="#000000", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#00FFAA", corner_radius=10)
-            btn_seleccionar_todo.pack(side="left", padx=10, pady=5)
-            # Botón aceptar seleccionadas
-            def aceptar_seleccionadas():
-                ids = []
-                for item in tree.get_children():
-                    if tree.set(item, "Seleccionar") == "Sí":
-                        ids.append(tree.item(item)['values'][1])  # id está en la segunda columna ahora
-                if not ids:
-                    messagebox.showwarning("Sin selección", "Selecciona al menos una captura para aceptar.")
-                    return
-                resultado = self.captura_model.mover_capturas_a_historico(ids)
-                for item in tree.get_children():
-                    if tree.set(item, "Seleccionar") == "Sí":
-                        tree.delete(item)
-                messagebox.showinfo("Éxito", f"Capturas aceptadas y movidas al histórico.\nProcesadas: {resultado['procesados']}\nActualizadas: {resultado['actualizados']}")
-            btn_aceptar = ct.CTkButton(botones_frame, text="Aceptar seleccionadas", command=aceptar_seleccionadas, fg_color="#00FFAA", text_color="#000000", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#00FFAA", corner_radius=10)
-            btn_aceptar.pack(side="left", padx=10, pady=5)
-            # Botón denegar seleccionadas
-            def denegar_seleccionadas():
-                ids = []
-                for item in tree.get_children():
-                    if tree.set(item, "Seleccionar") == "Sí":
-                        ids.append(tree.item(item)['values'][1])
-                if not ids:
-                    messagebox.showwarning("Sin selección", "Selecciona al menos una captura para denegar.")
-                    return
-                pk_col = columnas[0]
-                for item in tree.get_children():
-                    if tree.set(item, "Seleccionar") == "Sí":
-                        pk_val = tree.item(item)['values'][1]
-                        self.db_manager.delete_one(tabla, {pk_col: pk_val})
-                        tree.delete(item)
-                messagebox.showinfo("Denegadas", "Capturas denegadas correctamente.")
-            btn_denegar = ct.CTkButton(botones_frame, text="Denegar seleccionadas", command=denegar_seleccionadas, fg_color="#FF3333", text_color="#FFFFFF", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#FF3333", corner_radius=10)
-            btn_denegar.pack(side="left", padx=10, pady=5)
-        else:
-            btn_eliminar = ct.CTkButton(frame, text="Eliminar seleccionado", command=eliminar, fg_color="#FF3333", text_color="#FFFFFF", font=("Segoe UI", 12, "bold"), border_width=2, border_color="#FF3333", corner_radius=10)
-            btn_eliminar.pack(pady=5)
-    
-    def gestionar_actualizaciones(self):
-        # Método vacío para evitar error de atributo
-        pass
-    
     def _restablecer_contrasena_usuario(self):
         from tkinter import simpledialog, messagebox
         sel = self.usuarios_tree.selection()
@@ -2494,6 +1823,36 @@ class MainWindow:
             self.logger.error(f"Error leyendo capturas offline: {str(e)}")
             messagebox.showerror("Error", f"Error leyendo capturas pendientes: {str(e)}")
         self._actualizar_estado_pendientes()
+    
+    def _buscar_item_automatico(self, *args):
+        """Busca automáticamente el item cuando se ingresa un código de barras"""
+        codigo = self.codigo_captura_var.get().strip()
+        
+        # Solo buscar si el código tiene al menos 8 caracteres (código de barras mínimo)
+        if len(codigo) >= 8:
+            # Validar formato del código
+            es_valido, _ = Validators.validar_codigo_barras(codigo)
+            if es_valido:
+                # Limpiar código
+                codigo_limpio = Validators.limpiar_codigo_barras(codigo)
+                
+                # Buscar en hilo separado para no bloquear la interfaz
+                threading.Thread(
+                    target=self._ejecutar_busqueda_automatica, 
+                    args=(codigo_limpio,), 
+                    daemon=True
+                ).start()
+    
+    def _ejecutar_busqueda_automatica(self, codigo):
+        """Ejecuta la búsqueda automática del item"""
+        try:
+            resultado = self.codigo_model.buscar_codigo(codigo)
+            if resultado and resultado.get('item'):
+                # Actualizar el campo item en el hilo principal
+                self.master.after(0, lambda: self.item_captura_var.set(resultado['item']))
+                self.logger.log_user_action(self.usuario, f"Búsqueda automática exitosa: {codigo}")
+        except Exception as e:
+            self.logger.error(f"Error en búsqueda automática: {str(e)}")
     
     def _actualizar_estado_pendientes(self):
         """Actualiza la visibilidad del botón de subir capturas pendientes"""
