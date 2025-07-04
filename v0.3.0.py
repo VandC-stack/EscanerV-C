@@ -34,7 +34,6 @@ from config.database import DatabaseManager
 from models.usuario import Usuario
 from models.codigo_item import CodigoItem
 from models.captura import Captura
-from services.updater import UpdaterService
 from utils.logger import AppLogger
 from utils.validators import Validators
 
@@ -51,7 +50,6 @@ class EscanerApp:
         self.usuario_model = None
         self.codigo_model = None
         self.captura_model = None
-        self.updater = None
         
         # Variables de estado
         self.usuario_actual = None
@@ -81,9 +79,6 @@ class EscanerApp:
             self.codigo_model = CodigoItem(self.db_manager)
             self.captura_model = Captura(self.db_manager)
             
-            # Inicializar updater
-            self.updater = UpdaterService()  # Solo URL base opcional
-            
             # Cargar configuración
             self.cargar_configuracion()
             
@@ -93,9 +88,24 @@ class EscanerApp:
             self.logger.info("Aplicación inicializada correctamente")
             
         except Exception as e:
-            self.logger.error(f"Error inicializando aplicación: {str(e)}")
-            messagebox.showerror("Error", f"Error al inicializar la aplicación: {str(e)}")
-            self.root.destroy()
+            # Manejar el caso donde el logger no está inicializado
+            try:
+                if hasattr(self, 'logger') and self.logger:
+                    self.logger.error(f"Error inicializando aplicación: {str(e)}")
+                else:
+                    print(f"Error inicializando aplicación: {str(e)}")
+            except:
+                print(f"Error inicializando aplicación: {str(e)}")
+            
+            try:
+                messagebox.showerror("Error", f"Error al inicializar la aplicación: {str(e)}")
+            except:
+                print(f"Error al inicializar la aplicación: {str(e)}")
+            
+            try:
+                self.root.destroy()
+            except:
+                pass
     
     def cargar_configuracion(self):
         """Carga la configuración desde la base de datos"""
@@ -108,7 +118,13 @@ class EscanerApp:
                 self.config_data[row['clave']] = row['valor']
                 
         except Exception as e:
-            self.logger.error(f"Error cargando configuración: {str(e)}")
+            try:
+                if hasattr(self, 'logger') and self.logger:
+                    self.logger.error(f"Error cargando configuración: {str(e)}")
+                else:
+                    print(f"Error cargando configuración: {str(e)}")
+            except:
+                print(f"Error cargando configuración: {str(e)}")
     
     def mostrar_login(self):
         """Muestra la ventana de login"""
@@ -122,28 +138,44 @@ class EscanerApp:
         self.usuario_actual = usuario
         self.rol_actual = rol
         
-        self.logger.log_user_action(usuario, "Login exitoso")
+        try:
+            self.logger.log_user_action(usuario, "Login exitoso")
+        except Exception as e:
+            print(f"Error registrando login: {str(e)}")
         
         # Mostrar ventana principal
         self.mostrar_ventana_principal()
     
     def mostrar_ventana_principal(self):
         """Muestra la ventana principal de la aplicación"""
-        for widget in self.root.winfo_children():
-            widget.destroy()
-        
-        self.main_window = MainWindow(
-            self.root, 
-            self.usuario_actual, 
-            self.rol_actual,
-            self.codigo_model,
-            self.captura_model,
-            self.updater,  # Puede eliminarse si no se usa en MainWindow
-            self.logger,
-            self.config_data,
-            self.usuario_model,
-            self.db_manager
-        )
+        try:
+            for widget in self.root.winfo_children():
+                widget.destroy()
+            
+            self.main_window = MainWindow(
+                self.root, 
+                self.usuario_actual, 
+                self.rol_actual,
+                self.codigo_model,
+                self.captura_model,
+                self.logger,
+                self.config_data,
+                self.usuario_model,
+                self.db_manager
+            )
+        except Exception as e:
+            try:
+                if hasattr(self, 'logger') and self.logger:
+                    self.logger.error(f"Error mostrando ventana principal: {str(e)}")
+                else:
+                    print(f"Error mostrando ventana principal: {str(e)}")
+            except:
+                print(f"Error mostrando ventana principal: {str(e)}")
+            
+            try:
+                messagebox.showerror("Error", f"Error al mostrar la ventana principal: {str(e)}")
+            except:
+                print(f"Error al mostrar la ventana principal: {str(e)}")
     
     def ejecutar(self):
         """Ejecuta la aplicación"""
@@ -293,49 +325,82 @@ class LoginWindow:
             pass  # Widget ya destruido
 
 class MainWindow:
-    def __init__(self, master, usuario, rol, codigo_model, captura_model, updater, logger, config_data, usuario_model, db_manager):
+    def __init__(self, master, usuario, rol, codigo_model, captura_model, logger, config_data, usuario_model, db_manager):
         self.master = master
         self.usuario = usuario
         self.rol = rol
         self.codigo_model = codigo_model
         self.captura_model = captura_model
-        self.updater = updater
         self.logger = logger
         self.config_data = config_data
         self.usuario_model = usuario_model
         self.db_manager = db_manager
         
-        self.crear_interfaz()
-        if self.rol != "superadmin":
-            self.cargar_estadisticas()
+        try:
+            self.crear_interfaz()
+            if self.rol != "superadmin":
+                self.cargar_estadisticas()
+        except Exception as e:
+            try:
+                if hasattr(self, 'logger') and self.logger:
+                    self.logger.error(f"Error creando interfaz principal: {str(e)}")
+                else:
+                    print(f"Error creando interfaz principal: {str(e)}")
+            except:
+                print(f"Error creando interfaz principal: {str(e)}")
+            
+            try:
+                messagebox.showerror("Error", f"Error al crear la interfaz principal: {str(e)}")
+            except:
+                print(f"Error al crear la interfaz principal: {str(e)}")
     
     def crear_interfaz(self):
         """Crea la interfaz principal"""
-        # Crear tabview
-        self.tabview = ct.CTkTabview(self.master, fg_color="#000000")
-        self.tabview.pack(fill="both", expand=True, padx=40, pady=20)
-        
-        # Interfaz específica para superadmin
-        if self.rol == "superadmin":
-            self._crear_interfaz_superadmin()
-        else:
-            self._crear_interfaz_normal()
-        
-        # Establecer pestaña inicial
-        if self.rol == "superadmin":
-            self.tabview.set("Gestión de Usuarios")
-        else:
-            self.tabview.set("Escáner")
+        try:
+            # Crear tabview
+            self.tabview = ct.CTkTabview(self.master, fg_color="#000000")
+            self.tabview.pack(fill="both", expand=True, padx=40, pady=20)
+            
+            # Interfaz específica para superadmin
+            if self.rol == "superadmin":
+                self._crear_interfaz_superadmin()
+            else:
+                self._crear_interfaz_normal()
+            
+            # Establecer pestaña inicial
+            if self.rol == "superadmin":
+                self.tabview.set("Gestión de Usuarios")
+            else:
+                self.tabview.set("Escáner")
+        except Exception as e:
+            try:
+                if hasattr(self, 'logger') and self.logger:
+                    self.logger.error(f"Error creando interfaz: {str(e)}")
+                else:
+                    print(f"Error creando interfaz: {str(e)}")
+            except:
+                print(f"Error creando interfaz: {str(e)}")
+            raise e
     
     def _crear_interfaz_superadmin(self):
         """Crea la interfaz específica para superadmin"""
-        # Pestaña Gestión de Usuarios
-        self.tabview.add("Gestión de Usuarios")
-        self._configurar_tab_gestion_usuarios(self.tabview.tab("Gestión de Usuarios"))
-        
-        # Pestaña Base de Datos
-        self.tabview.add("Base de Datos")
-        self._configurar_tab_base_datos(self.tabview.tab("Base de Datos"))
+        try:
+            # Pestaña Gestión de Usuarios
+            self.tabview.add("Gestión de Usuarios")
+            self._configurar_tab_gestion_usuarios(self.tabview.tab("Gestión de Usuarios"))
+            
+            # Pestaña Base de Datos
+            self.tabview.add("Base de Datos")
+            self._configurar_tab_base_datos(self.tabview.tab("Base de Datos"))
+        except Exception as e:
+            try:
+                if hasattr(self, 'logger') and self.logger:
+                    self.logger.error(f"Error creando interfaz superadmin: {str(e)}")
+                else:
+                    print(f"Error creando interfaz superadmin: {str(e)}")
+            except:
+                print(f"Error creando interfaz superadmin: {str(e)}")
+            raise e
     
     def _crear_interfaz_normal(self):
         """Crea la interfaz normal para otros usuarios"""
@@ -373,20 +438,232 @@ class MainWindow:
     
     def _configurar_tab_base_datos(self, parent):
         """Configura la pestaña de base de datos para superadmin"""
-        main_frame = ct.CTkFrame(parent, fg_color="#000000")
-        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        try:
+            main_frame = ct.CTkFrame(parent, fg_color="#000000")
+            main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+            ct.CTkLabel(
+                main_frame, 
+                text="Panel de Administración - Base de Datos", 
+                font=("Segoe UI", 18, "bold"), 
+                text_color="#00FFAA"
+            ).pack(pady=(0, 20))
+            # Tabs para cada tabla
+            tablas_tabview = ct.CTkTabview(main_frame, fg_color="#111111")
+            tablas_tabview.pack(fill="both", expand=True)
+            # Usuarios
+            tablas_tabview.add("Usuarios")
+            self._crear_lista_usuarios(tablas_tabview.tab("Usuarios"), side="top")
+            # Codigos_items
+            tablas_tabview.add("Codigos_items")
+            self.codigos_items_tab = tablas_tabview.tab("Codigos_items")
+            self._mostrar_tabla_sql(self.codigos_items_tab, "codigos_items")
+            # Capturas
+            tablas_tabview.add("Capturas")
+            if self.rol == "superadmin":
+                self._configurar_tab_revision_capturas(tablas_tabview.tab("Capturas"))
+            else:
+                self._configurar_tab_captura(tablas_tabview.tab("Capturas"))
+            # Refrescar codigos_items y usuarios al cambiar de pestaña
+            def on_tab_change():
+                current_tab = tablas_tabview.get()
+                if current_tab == "Codigos_items":
+                    self._mostrar_tabla_sql(self.codigos_items_tab, "codigos_items")
+                elif current_tab == "Usuarios":
+                    # Refrescar la tabla de usuarios
+                    for widget in tablas_tabview.tab("Usuarios").winfo_children():
+                        widget.destroy()
+                    self._crear_lista_usuarios(tablas_tabview.tab("Usuarios"), side="top")
+            try:
+                tablas_tabview.configure(command=on_tab_change)
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                if hasattr(self, 'logger') and self.logger:
+                    self.logger.error(f"Error configurando tab base de datos: {str(e)}")
+                else:
+                    print(f"Error configurando tab base de datos: {str(e)}")
+            except:
+                print(f"Error configurando tab base de datos: {str(e)}")
+            raise e
+    
+    def _configurar_tab_revision_capturas(self, parent):
+        from tkinter import ttk, messagebox
+        from models.captura import Captura
+        # Scrollable frame para la tabla y los botones
+        scroll_frame = ct.CTkScrollableFrame(parent, fg_color="#000000", width=900, height=500)
+        scroll_frame.pack(fill="both", expand=True, padx=20, pady=(20, 0))
         ct.CTkLabel(
-            main_frame, 
-            text="Panel de Administración - Base de Datos", 
-            font=("Segoe UI", 18, "bold"), 
+            scroll_frame,
+            text="Revisión de Capturas",
+            font=("Segoe UI", 18, "bold"),
             text_color="#00FFAA"
         ).pack(pady=(0, 20))
-        # Tabs para cada tabla
-        tablas_tabview = ct.CTkTabview(main_frame, fg_color="#111111")
-        tablas_tabview.pack(fill="both", expand=True)
-        for nombre_tabla in ["usuarios", "codigos_items", "capturas"]:
-            tablas_tabview.add(nombre_tabla.capitalize())
-            self._mostrar_tabla_sql(tablas_tabview.tab(nombre_tabla.capitalize()), nombre_tabla)
+        captura_model = Captura(self.db_manager)
+        capturas = captura_model.obtener_todas_capturas()
+        if not capturas:
+            ct.CTkLabel(
+                scroll_frame,
+                text="No hay capturas registradas.",
+                text_color="#00FFAA",
+                font=("Segoe UI", 14, "bold")
+            ).pack(pady=20)
+            return
+        columns = list(capturas[0].keys())
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("Treeview",
+                        background="#000000",
+                        foreground="#00FFAA",
+                        rowheight=24,
+                        fieldbackground="#000000",
+                        font=("Segoe UI", 10))
+        style.configure("Treeview.Heading",
+                        background="#111111",
+                        foreground="#00FFAA",
+                        font=("Segoe UI", 11, "bold"))
+        style.map('Treeview', background=[('selected', '#222222')])
+        tree = ttk.Treeview(scroll_frame, columns=columns, show="headings", height=16, style="Treeview", selectmode="extended")
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=120, anchor="center")
+        for row in capturas:
+            tree.insert("", "end", values=[row[col] for col in columns])
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+        ct.CTkLabel(scroll_frame, text="Usa Ctrl o Shift para seleccionar varias capturas.", text_color="#55DDFF").pack(pady=(0, 8))
+        btns_frame = ct.CTkFrame(scroll_frame, fg_color="#000000")
+        btns_frame.pack(pady=10)
+        def refrescar_codigos_items_tabla():
+            # Busca el tabview de la base de datos y refresca la tabla codigos_items
+            try:
+                # Busca el frame principal de la base de datos
+                for widget in parent.master.winfo_children():
+                    if isinstance(widget, ct.CTkTabview):
+                        tabview = widget
+                        if "Codigos_items" in tabview._tabs:
+                            codigos_tab = tabview.tab("Codigos_items")
+                            self._mostrar_tabla_sql(codigos_tab, "codigos_items")
+            except Exception as e:
+                print(f"Error refrescando codigos_items: {e}")
+        def aceptar():
+            seleccion = tree.selection()
+            if not seleccion:
+                messagebox.showwarning("Sin selección", "Selecciona al menos una captura para aceptar.")
+                return
+            ids = [tree.item(item)['values'][0] for item in seleccion]
+            resultado = captura_model.mover_capturas_a_historico(ids)
+            for item in seleccion:
+                tree.delete(item)
+            messagebox.showinfo("Éxito", f"Capturas aceptadas y movidas a codigos_items. Procesadas: {resultado['procesados']}, Actualizadas: {resultado['actualizados']}")
+            refrescar_codigos_items_tabla()  # Refresca automáticamente la tabla codigos_items
+        def denegar():
+            seleccion = tree.selection()
+            if not seleccion:
+                messagebox.showwarning("Sin selección", "Selecciona al menos una captura para denegar.")
+                return
+            ids = [tree.item(item)['values'][0] for item in seleccion]
+            for id_captura in ids:
+                self.db_manager.execute_query("DELETE FROM capturas WHERE id = %s", (id_captura,), fetch=False)
+            for item in seleccion:
+                tree.delete(item)
+            messagebox.showinfo("Éxito", "Capturas denegadas y eliminadas correctamente.")
+        aceptar_btn = ct.CTkButton(
+            btns_frame,
+            text="Aceptar Captura(s)",
+            command=aceptar,
+            fg_color="#00FFAA",
+            text_color="#000000",
+            font=("Segoe UI", 12, "bold"),
+            border_width=2,
+            border_color="#00FFAA",
+            corner_radius=10
+        )
+        aceptar_btn.pack(side="left", padx=10)
+        denegar_btn = ct.CTkButton(
+            btns_frame,
+            text="Denegar Captura(s)",
+            command=denegar,
+            fg_color="#FF3333",
+            text_color="#FFFFFF",
+            font=("Segoe UI", 12, "bold"),
+            border_width=2,
+            border_color="#FF3333",
+            corner_radius=10
+        )
+        denegar_btn.pack(side="left", padx=10)
+    
+    def _mostrar_tabla_sql(self, parent, nombre_tabla):
+        from tkinter import ttk
+        # Limpiar widgets previos
+        for widget in parent.winfo_children():
+            widget.destroy()
+        # Buscador
+        search_var = None
+        if nombre_tabla == "codigos_items":
+            search_frame = ct.CTkFrame(parent, fg_color="#000000")
+            search_frame.pack(fill="x", padx=10, pady=(10, 0))
+            search_var = ct.StringVar()
+            ct.CTkLabel(search_frame, text="Buscar por código de barras o item:", text_color="#00FFAA").pack(side="left", padx=(0, 8))
+            search_entry = ct.CTkEntry(search_frame, textvariable=search_var, width=200)
+            search_entry.pack(side="left")
+        # Obtener datos de la tabla
+        try:
+            datos = self.db_manager.execute_query(f"SELECT * FROM {nombre_tabla}")
+        except Exception as e:
+            label = ct.CTkLabel(
+                parent,
+                text=f"Error al obtener datos: {str(e)}",
+                text_color="#FF3333",
+                font=("Segoe UI", 14, "bold")
+            )
+            label.pack(pady=20)
+            return
+        if not datos:
+            label = ct.CTkLabel(
+                parent,
+                text=f"No hay datos en la tabla '{nombre_tabla}'.",
+                text_color="#00FFAA",
+                font=("Segoe UI", 14, "bold")
+            )
+            label.pack(pady=20)
+            return
+        columns = list(datos[0].keys())
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("Treeview",
+                        background="#000000",
+                        foreground="#00FFAA",
+                        rowheight=24,
+                        fieldbackground="#000000",
+                        font=("Segoe UI", 10))
+        style.configure("Treeview.Heading",
+                        background="#111111",
+                        foreground="#00FFAA",
+                        font=("Segoe UI", 11, "bold"))
+        style.map('Treeview', background=[('selected', '#222222')])
+        tree = ttk.Treeview(parent, columns=columns, show="headings", height=16, style="Treeview")
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=120, anchor="center")
+        # Guardar referencia a los datos originales para el filtro
+        self._codigos_items_data = datos if nombre_tabla == "codigos_items" else None
+        for row in datos:
+            tree.insert("", "end", values=[row[col] for col in columns])
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+        # Lógica de búsqueda para codigos_items
+        if nombre_tabla == "codigos_items" and search_var is not None:
+            def filtrar(*args):
+                filtro = search_var.get().strip().lower()
+                # Limpiar la tabla
+                for item in tree.get_children():
+                    tree.delete(item)
+                # Volver a insertar los datos filtrados
+                for row in self._codigos_items_data:
+                    codigo = str(row.get('codigo_barras', '')).lower()
+                    item_val = str(row.get('item', '')).lower()
+                    if not filtro or filtro in codigo or filtro in item_val:
+                        tree.insert("", "end", values=[row[col] for col in columns])
+            search_var.trace_add('write', filtrar)
     
     def _configurar_tab_escaner(self, parent):
         """Configura la pestaña del escáner"""
@@ -1412,21 +1689,8 @@ class MainWindow:
             font=("Segoe UI", 14, "bold")
         ).pack(anchor="w", padx=10, pady=(10, 5))
         # Botones superiores alineados a la derecha
-        self.mostrar_contrasenas = False
         botones_superiores_frame = ct.CTkFrame(lista_frame, fg_color="#111111")
         botones_superiores_frame.pack(fill="x", padx=10, pady=(0, 5))
-        self.btn_toggle_contrasena = ct.CTkButton(
-            botones_superiores_frame,
-            text="Mostrar contraseñas",
-            command=self._toggle_contrasena_columna,
-            fg_color="#222222",
-            text_color="#00FFAA",
-            font=("Segoe UI", 12, "bold"),
-            border_width=2,
-            border_color="#00FFAA",
-            corner_radius=10
-        )
-        self.btn_toggle_contrasena.pack(side="left", padx=(0, 5))
         self.btn_eliminar_usuario = ct.CTkButton(
             botones_superiores_frame,
             text="Eliminar seleccionado",
@@ -1470,21 +1734,11 @@ class MainWindow:
         self.usuarios_table_frame.pack(fill="both", expand=True, padx=10, pady=10)
         self._refresh_usuarios_table()
     
-    def _toggle_contrasena_columna(self):
-        self.mostrar_contrasenas = not self.mostrar_contrasenas
-        if self.mostrar_contrasenas:
-            self.btn_toggle_contrasena.configure(text="Ocultar contraseñas")
-        else:
-            self.btn_toggle_contrasena.configure(text="Mostrar contraseñas")
-        self._refresh_usuarios_table()
-    
     def _refresh_usuarios_table(self):
         from tkinter import ttk
         for widget in self.usuarios_table_frame.winfo_children():
             widget.destroy()
         columns = ["id", "usuario", "rol", "activo", "fecha_creacion"]
-        if self.mostrar_contrasenas:
-            columns.append("contraseña (hash)")
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -1497,59 +1751,58 @@ class MainWindow:
                         background="#111111",
                         foreground="#00FFAA",
                         font=("Segoe UI", 12, "bold"))
-        style.map('Treeview', background=[('selected', '#222222')])
-        tree = ttk.Treeview(self.usuarios_table_frame, columns=columns, show="headings", height=16, style="Treeview")
+        # Cambiar color de selección a un verde brillante
+        style.map('Treeview',
+                  background=[('selected', '#00FFAA')],
+                  foreground=[('selected', '#000000')])
+        tree = ttk.Treeview(self.usuarios_table_frame, columns=columns, show="headings", height=16, style="Treeview", selectmode="browse")
         for col in columns:
             tree.heading(col, text=col)
             tree.column(col, width=120, anchor="center")
         usuarios = self.usuario_model.obtener_usuarios()
         for user in usuarios:
             row = [user.get("id", ""), user.get("usuario", ""), user.get("rol", ""), user.get("activo", ""), user.get("fecha_creacion", "")]
-            if self.mostrar_contrasenas:
-                row.append(user.get("contraseña", ""))
             tree.insert("", "end", values=row)
         tree.pack(fill="both", expand=True)
-        # Edición directa
-        def editar_celda(event):
-            sel = tree.selection()
-            if not sel:
-                return
-            item = sel[0]
-            col = tree.identify_column(event.x)
-            col_idx = int(col.replace('#','')) - 1
-            col_name = columns[col_idx]
-            old_value = tree.item(item)['values'][col_idx]
-            entry = ttk.Entry(self.usuarios_table_frame, font=("Segoe UI", 11))
-            entry.insert(0, old_value)
-            entry.place(x=event.x_root-self.usuarios_table_frame.winfo_rootx(), y=event.y_root-self.usuarios_table_frame.winfo_rooty())
-            entry.focus_set()
-            def guardar(event=None):
-                nuevo_valor = entry.get()
-                tree.set(item, column=col_name, value=nuevo_valor)
-                pk_val = tree.item(item)['values'][0]
-                # Si es contraseña, hashearla si no parece hash
-                if self.mostrar_contrasenas and col_name == "contraseña (hash)":
-                    import hashlib
-                    if len(nuevo_valor) != 64 or not all(c in '0123456789abcdef' for c in nuevo_valor.lower()):
-                        nuevo_valor = hashlib.sha256(nuevo_valor.encode()).hexdigest()
-                    self.db_manager.update_one("usuarios", {"contraseña": nuevo_valor}, {"id": pk_val})
-                else:
-                    db_col = col_name if col_name != "contraseña (hash)" else "contraseña"
-                    self.db_manager.update_one("usuarios", {db_col: nuevo_valor}, {"id": pk_val})
-                entry.destroy()
-            entry.bind('<Return>', guardar)
-            entry.bind('<FocusOut>', lambda e: entry.destroy())
-        tree.bind('<Double-1>', editar_celda)
+        tree.update_idletasks()  # Fuerza el render completo del widget
+        tree.focus_set()         # Da foco al widget
+        if tree.get_children():
+            tree.selection_set(tree.get_children()[0])  # Selecciona automáticamente la primera fila
+        # Forzar selección de fila al hacer clic
+        def on_click(event):
+            item = tree.identify_row(event.y)
+            if item:
+                tree.selection_set(item)
+        tree.bind('<ButtonRelease-1>', on_click)
         self.usuarios_tree = tree
     
+    def _toggle_contrasena_columna(self):
+        self.mostrar_contrasenas = not self.mostrar_contrasenas
+        if self.mostrar_contrasenas:
+            self.btn_toggle_contrasena.configure(text="Ocultar contraseñas")
+        else:
+            self.btn_toggle_contrasena.configure(text="Mostrar contraseñas")
+        self._refresh_usuarios_table()
+    
+    def _get_usuarios_tree(self):
+        # Devuelve la referencia actual al Treeview de usuarios
+        from tkinter import ttk
+        for widget in self.usuarios_table_frame.winfo_children():
+            if isinstance(widget, ttk.Treeview):
+                return widget
+        return None
+
     def _eliminar_usuario_tabla(self):
-        sel = self.usuarios_tree.selection()
+        tree = self._get_usuarios_tree()
+        if not tree:
+            return
+        sel = tree.selection()
         if not sel:
             return
         for item in sel:
-            pk_val = self.usuarios_tree.item(item)['values'][0]
+            pk_val = tree.item(item)['values'][0]
             self.db_manager.delete_one("usuarios", {"id": pk_val})
-            self.usuarios_tree.delete(item)
+            tree.delete(item)
     
     def _crear_formulario_usuario(self, parent, side="right"):
         form_frame = ct.CTkFrame(parent, fg_color="#111111", border_width=2, border_color="#00FFAA")
@@ -1671,10 +1924,6 @@ class MainWindow:
     def guardar_configuracion(self):
         """Guarda la configuración en la base de datos"""
         try:
-            # Actualizar configuración local
-            self.config_data["url_actualizaciones"] = self.url_actualizaciones_var.get()
-            self.config_data["auto_actualizar"] = self.auto_actualizar_var.get()
-            
             # Guardar en base de datos
             for clave, valor in self.config_data.items():
                 if valor:  # Solo guardar valores no vacíos
@@ -1733,12 +1982,16 @@ class MainWindow:
     
     def _restablecer_contrasena_usuario(self):
         from tkinter import simpledialog, messagebox
-        sel = self.usuarios_tree.selection()
+        tree = self._get_usuarios_tree()
+        if not tree:
+            messagebox.showwarning("Error", "No se encontró la tabla de usuarios.")
+            return
+        sel = tree.selection()
         if not sel:
             messagebox.showwarning("Selecciona un usuario", "Debes seleccionar un usuario para restablecer la contraseña.")
             return
         item = sel[0]
-        usuario = self.usuarios_tree.item(item)['values'][1]
+        usuario = tree.item(item)['values'][1]
         # Pedir nueva contraseña
         nueva_pass = simpledialog.askstring("Restablecer contraseña", f"Nueva contraseña para '{usuario}':", show='*')
         if not nueva_pass:
