@@ -1,5 +1,5 @@
 """
-Modelo de usuario para la aplicación
+Modelo de usuarios para la aplicación
 """
 import hashlib
 from datetime import datetime
