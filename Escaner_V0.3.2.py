@@ -14,7 +14,7 @@ import math
 import hashlib
 import json
 try:
-    from tkcalendar import DateEntry
+    from tkcalendar import DateEntry 
 except ImportError:
     DateEntry = None
 
@@ -23,8 +23,8 @@ ct.set_appearance_mode("dark")
 ct.set_default_color_theme("dark-blue")
 
 # Constantes de versión
-VERSION_ACTUAL = "0.3.0"
-FECHA_COMPILACION = "2025-01-28"
+#VERSION_ACTUAL = "0.3.2"
+#FECHA_COMPILACION = "2025-07-08"
 
 # Configuración de logging
 logging.basicConfig(
