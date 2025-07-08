@@ -1,136 +1,54 @@
-# Gestor de Códigos de Barras
+# Aplicación SQL
 
-Aplicación de escritorio desarrollada en Python para la gestión integral de códigos de barras, items y cumplimiento de estándares. Permite cargar archivos CLP (Excel), consultar códigos de barras y registrar el estado de cumplimiento con motivos asociados.
+Aplicación de gestión y escaneo de códigos de barras con base de datos SQL.
 
-## Características Principales
+## Características
 
-- **Carga de Archivos CLP**: Importa archivos Excel con códigos de barras e items
-- **Consulta de Códigos**: Búsqueda rápida de códigos de barras y su información asociada
-- **Gestión de Cumplimiento**: Registro de estado "CUMPLE"/"NO CUMPLE" con motivos
-- **Base de Datos Centralizada**: Almacenamiento persistente de todos los datos
-- **Historial de Actividades**: Registro de consultas y cargas de archivos
-- **Interfaz Intuitiva**: Diseño moderno con CustomTkinter
-
-## Requisitos del Sistema
-
-- Python 3.8 o superior
-- Windows 10/11
-- 4GB RAM mínimo
-- 500MB espacio en disco
-
-## Instalación
-
-1. **Clonar el repositorio**:
-   ```bash
-   git clone [URL_DEL_REPOSITORIO]
-   cd Codigos
-   ```
-
-2. **Instalar dependencias**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configurar la base de datos**:
-   - La aplicación creará automáticamente la base de datos SQLite en la primera ejecución
-   - Los archivos se almacenan en la carpeta `Aplicacion/Aplicacion SQL/`
-
-## Uso de la Aplicación
-
-### Inicio
-```bash
-cd Aplicacion/Aplicacion SQL
-python Escaner_V0.3.2.py
-```
-
-### Funcionalidades
-
-#### 1. Carga de Archivos CLP
-- Selecciona archivos Excel (.xlsx) con formato específico
-- Columna A: Item
-- Columna F: Código de barras
-- La aplicación suma nuevos códigos sin sobrescribir existentes
-
-#### 2. Consulta de Códigos
-- Ingresa un código de barras para buscar
-- Visualiza información del item asociado
-- Revisa historial de consultas
-
-#### 3. Captura de Cumplimiento
-- Registra estado de cumplimiento
-- Asigna motivos para casos "NO CUMPLE"
-- Guarda en base de datos centralizada
-
-## Estructura de la Base de Datos
-
-### Tablas Principales
-
-- **items**: Información de productos/items
-- **codigos_barras**: Códigos de barras asociados a items
-- **consultas**: Historial de búsquedas realizadas
-- **clp_cargas**: Registro de archivos CLP cargados
-
-### Relaciones
-- Un item puede tener múltiples códigos de barras
-- Cada código de barras pertenece a un solo item
-- Consultas y cargas se registran con timestamp
+- Escaneo y registro de códigos de barras e ítems.
+- Gestión de usuarios y permisos.
+- Exportación de capturas a Excel.
+- Estadísticas y reportes.
+- Interfaz gráfica intuitiva.
+- Registro de consultas y operaciones.
 
 ## Estructura del Proyecto
 
-```
-Aplicacion/
-├── Aplicacion SQL/
-│   ├── Escaner_V0.3.2.py       # Aplicación principal
-│   ├── config/
-│   │   └── database.py         # Configuración de BD
-│   ├── models/                 # Modelos de datos
-│   ├── services/               # Lógica de negocio
-│   ├── utils/                  # Utilidades
-│   └── resources/              # Recursos (iconos, etc.)
-├── requirements.txt            # Dependencias Python
-└── README.md                   # Este archivo
-```
+- `config/` — Configuración de la base de datos.
+- `models/` — Modelos de datos y lógica de negocio.
+- `utils/` — Utilidades y validaciones.
+- `resources/` — Imágenes y recursos gráficos.
+- `logs/` — Archivos de registro.
+- Archivos principales `.py` — Scripts de ejecución y utilidades.
 
-## Configuración
+## Instalación
 
-### Variables de Entorno
-- La aplicación utiliza SQLite por defecto
-- Los logs se guardan en `logs/`
-- Configuración de base de datos en `config/database.py`
+1. Clona el repositorio:
+   ```bash
+   git clone https://github.com/VandC-stack/EscanerV-C.git
+   ```
+2. Instala las dependencias:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Configura la base de datos en `config/database.py`.
 
-### Personalización
-- Modifica `resources/` para cambiar iconos
-- Ajusta validaciones en `utils/validators.py`
-- Personaliza logs en `utils/logger.py`
+## Uso
 
-## Funcionalidades Técnicas
+- Ejecuta la aplicación principal:
+  ```bash
+  python Escaner_V0.3.2.py
+  ```
+- Sigue las instrucciones en pantalla para iniciar sesión y comenzar a usar la aplicación.
 
-- **Validación de Datos**: Verificación de formatos y consistencia
-- **Logging**: Registro detallado de operaciones
-- **Manejo de Errores**: Gestión robusta de excepciones
-- **Interfaz Responsiva**: Adaptable a diferentes resoluciones
-- **Persistencia de Datos**: Almacenamiento confiable en SQLite
+## Personalización
+
+- Puedes modificar los recursos gráficos en la carpeta `resources/`.
+- Ajusta la configuración de la base de datos en `config/database.py`.
 
 ## Soporte
 
-Para reportar problemas o solicitar nuevas funcionalidades:
-- Crear un issue en el repositorio
-- Incluir información del sistema y pasos para reproducir
-- Adjuntar logs si es necesario
+Para reportar errores o solicitar nuevas funciones, abre un [issue](https://github.com/VandC-stack/EscanerV-C/issues) en GitHub.
 
 ## Licencia
 
-Este proyecto es de uso interno y privado.
-
-## Créditos
-
-Desarrollado con:
-- Python 3.x
-- CustomTkinter
-- SQLite3
-- Pandas (para manejo de Excel)
-
----
-
-**Versión**: 0.3.2  
-**Última actualización**: Julio 2024
+Este proyecto está bajo la licencia MIT.
