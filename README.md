@@ -51,4 +51,4 @@ Para reportar errores o solicitar nuevas funciones, abre un [issue](https://gith
 
 ## Licencia
 
-Este proyecto está bajo la licencia MIT.
+Este proyecto es para uso interno de la empresa
