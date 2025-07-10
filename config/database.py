@@ -6,13 +6,15 @@ import psycopg2.extras
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import hashlib
+import json
+import os
 
 class DatabaseManager:
     """Gestor de base de datos PostgreSQL"""
     
-    def __init__(self, host: str = "localhost", port: int = 5432, 
-                 user: str = "postgres", password: str = "ubuntu", 
-                 database: str = "Escaner"):
+    def __init__(self, host: str = None, port: int = None, 
+                 user: str = None, password: str = None, 
+                 database: str = None):
         """
         Inicializa el gestor de base de datos
         
@@ -23,14 +25,70 @@ class DatabaseManager:
             password: Contraseña de la base de datos
             database: Nombre de la base de datos
         """
-        self.config = {
-            "host": host,
-            "port": port,
-            "user": user,
-            "password": password,
-            "database": database
-        }
+        # Cargar configuración desde archivo o usar valores por defecto
+        self.config = self._load_database_config()
+        
+        # Sobrescribir con parámetros proporcionados
+        if host:
+            self.config["host"] = host
+        if port:
+            self.config["port"] = port
+        if user:
+            self.config["user"] = user
+        if password:
+            self.config["password"] = password
+        if database:
+            self.config["database"] = database
+            
         self.connection = None
+    
+    def _load_database_config(self) -> Dict:
+        """
+        Carga la configuración de la base de datos desde archivo
+        
+        Returns:
+            Dict: Configuración de la base de datos
+        """
+        config_file = "database_config.json"
+        default_config = {
+            "host": "localhost",
+            "port": 5432,
+            "user": "postgres",
+            "password": "ubuntu",
+            "database": "Escaner"
+        }
+        
+        try:
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    file_config = json.load(f)
+                    # Combinar configuración por defecto con archivo
+                    default_config.update(file_config)
+                    print(f"Configuración cargada desde {config_file}")
+            else:
+                # Crear archivo de configuración por defecto
+                self._create_default_config(config_file, default_config)
+                print(f"Archivo de configuración creado: {config_file}")
+                
+        except Exception as e:
+            print(f"Error cargando configuración: {str(e)}")
+            print("Usando configuración por defecto")
+        
+        return default_config
+    
+    def _create_default_config(self, config_file: str, config: Dict):
+        """
+        Crea un archivo de configuración por defecto
+        
+        Args:
+            config_file: Nombre del archivo de configuración
+            config: Configuración por defecto
+        """
+        try:
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error creando archivo de configuración: {str(e)}")
     
     def connect(self) -> bool:
         """
@@ -40,21 +98,30 @@ class DatabaseManager:
             bool: True si la conexión fue exitosa
         """
         try:
-            # Agregar parámetros de codificación explícitos
+            # Configuración específica para manejar el error 0xab
             connection_params = self.config.copy()
-            connection_params.update({
-                'client_encoding': 'UTF8',
-                'options': '-c client_encoding=UTF8'
-            })
+            
+            # Usar Latin1 que es más permisivo con caracteres problemáticos
+            connection_params['client_encoding'] = 'LATIN1'
+            
+            print(f"Intentando conexión con encoding LATIN1...")
             
             self.connection = psycopg2.connect(**connection_params)
             
-            # Establecer codificación en la conexión
-            self.connection.set_client_encoding('UTF8')
+            # Una vez conectado, intentar cambiar a UTF8
+            try:
+                self.connection.set_client_encoding('UTF8')
+                print("Codificación cambiada a UTF8 exitosamente")
+            except Exception as encoding_error:
+                print(f"No se pudo cambiar a UTF8: {str(encoding_error)}")
+                # Mantener LATIN1 si no se puede cambiar
+                pass
             
+            print("Conexión exitosa")
             return True
+            
         except Exception as e:
-            print(f"Error conectando a la base de datos con encoding UTF8: {str(e)}")
+            print(f"Error conectando a la base de datos: {str(e)}")
             return False
     
     def disconnect(self):
@@ -89,10 +156,11 @@ class DatabaseManager:
                 for param in params:
                     if isinstance(param, str):
                         try:
-                            # Intentar decodificar y recodificar para limpiar caracteres problemáticos
-                            safe_param = param.encode('utf-8', errors='ignore').decode('utf-8')
+                            # Intentar múltiples codificaciones para limpiar caracteres problemáticos
+                            safe_param = self._clean_string(param)
                             safe_params.append(safe_param)
-                        except:
+                        except Exception as clean_error:
+                            print(f"Error limpiando parámetro: {clean_error}")
                             safe_params.append(param)
                     else:
                         safe_params.append(param)
@@ -109,9 +177,10 @@ class DatabaseManager:
                     for key, value in row.items():
                         if isinstance(value, str):
                             try:
-                                cleaned_value = value.encode('utf-8', errors='ignore').decode('utf-8')
+                                cleaned_value = self._clean_string(value)
                                 cleaned_row[key] = cleaned_value
-                            except:
+                            except Exception as clean_error:
+                                print(f"Error limpiando resultado: {clean_error}")
                                 cleaned_row[key] = value
                         else:
                             cleaned_row[key] = value
@@ -452,6 +521,50 @@ class DatabaseManager:
             print(f"Error probando conexión: {str(e)}")
             return False
     
+    def _clean_string(self, text: str) -> str:
+        """
+        Limpia una cadena de texto de caracteres problemáticos
+        
+        Args:
+            text: Texto a limpiar
+            
+        Returns:
+            str: Texto limpio
+        """
+        if not isinstance(text, str):
+            return text
+            
+        try:
+            # Solo limpiar caracteres específicamente problemáticos
+            problematic_chars = {
+                '\xab': '',  # Left-pointing double angle quotation mark
+                '\xbb': '',  # Right-pointing double angle quotation mark
+                '\xbf': '',  # Inverted question mark
+                '\xef': '',  # Latin small letter i with diaeresis
+                '\xbb': '',  # Right-pointing double angle quotation mark
+                '\xbf': '',  # Inverted question mark
+            }
+            
+            cleaned = text
+            for char, replacement in problematic_chars.items():
+                cleaned = cleaned.replace(char, replacement)
+            
+            # Si no hay cambios, devolver el texto original
+            if cleaned == text:
+                return text
+            
+            # Verificar que el texto limpio sea válido UTF-8
+            try:
+                cleaned.encode('utf-8')
+                return cleaned
+            except UnicodeEncodeError:
+                # Si aún hay problemas, usar método más conservador
+                return text.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+            
+        except Exception as e:
+            print(f"Error limpiando string: {str(e)}")
+            return text  # Devolver original si hay error
+    
     def fix_encoding_issues(self) -> bool:
         """
         Intenta arreglar problemas de codificación en la base de datos
@@ -473,8 +586,12 @@ class DatabaseManager:
             server_encoding = cursor.fetchone()[0]
             print(f"Codificación del servidor: {server_encoding}")
             
-            # Establecer codificación UTF8
-            self.connection.set_client_encoding('UTF8')
+            # Solo limpiar si hay problemas específicos de codificación
+            if self._detect_encoding_problems():
+                print("Problemas de codificación detectados. Iniciando limpieza...")
+                self._clean_database_data()
+            else:
+                print("No se detectaron problemas de codificación. Saltando limpieza.")
             
             cursor.close()
             return True
@@ -484,4 +601,119 @@ class DatabaseManager:
             return False
         finally:
             if self.connection:
-                self.disconnect() 
+                self.disconnect()
+    
+    def _detect_encoding_problems(self) -> bool:
+        """
+        Detecta si hay problemas de codificación en la base de datos
+        
+        Returns:
+            bool: True si se detectan problemas
+        """
+        try:
+            cursor = self.connection.cursor()
+            
+            # Buscar caracteres problemáticos específicos
+            problematic_chars = ['\xab', '\xbb', '\xbf', '\xef']  # Caracteres problemáticos comunes
+            
+            for char in problematic_chars:
+                # Buscar en tablas principales
+                tables_to_check = ['codigos_items', 'capturas', 'usuarios']
+                
+                for table in tables_to_check:
+                    try:
+                        cursor.execute(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table}')")
+                        if cursor.fetchone()[0]:
+                            # Buscar columnas de texto
+                            cursor.execute(f"""
+                                SELECT column_name 
+                                FROM information_schema.columns 
+                                WHERE table_name = '{table}' 
+                                AND data_type IN ('character varying', 'text', 'character')
+                            """)
+                            columns = cursor.fetchall()
+                            
+                            for (column_name,) in columns:
+                                # Buscar caracteres problemáticos
+                                cursor.execute(f"SELECT COUNT(*) FROM {table} WHERE {column_name} LIKE %s", (f'%{char}%',))
+                                count = cursor.fetchone()[0]
+                                if count > 0:
+                                    print(f"Problema detectado: {count} registros con caracteres problemáticos en {table}.{column_name}")
+                                    return True
+                    except Exception:
+                        continue
+            
+            return False
+            
+        except Exception as e:
+            print(f"Error detectando problemas de codificación: {str(e)}")
+            return False
+    
+    def _clean_database_data(self):
+        """
+        Limpia datos problemáticos en la base de datos
+        """
+        try:
+            print("Limpiando datos problemáticos en la base de datos...")
+            
+            # Tablas a limpiar
+            tables_to_clean = [
+                'codigos_items',
+                'capturas', 
+                'usuarios',
+                'configuracion',
+                'logs_aplicacion',
+                'items',
+                'codigos_barras',
+                'consultas'
+            ]
+            
+            for table in tables_to_clean:
+                try:
+                    # Verificar si la tabla existe
+                    cursor = self.connection.cursor()
+                    cursor.execute(f"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '{table}')")
+                    table_exists = cursor.fetchone()[0]
+                    
+                    if table_exists:
+                        print(f"Limpiando tabla: {table}")
+                        # Obtener columnas de texto
+                        cursor.execute(f"""
+                            SELECT column_name, data_type 
+                            FROM information_schema.columns 
+                            WHERE table_name = '{table}' 
+                            AND data_type IN ('character varying', 'text', 'character')
+                        """)
+                        text_columns = cursor.fetchall()
+                        
+                        for column_name, data_type in text_columns:
+                            try:
+                                # Limpiar datos en esta columna
+                                cursor.execute(f"SELECT id, {column_name} FROM {table} WHERE {column_name} IS NOT NULL")
+                                rows = cursor.fetchall()
+                                
+                                for row_id, text_value in rows:
+                                    if text_value and isinstance(text_value, str):
+                                        cleaned_value = self._clean_string(text_value)
+                                        if cleaned_value != text_value:
+                                            cursor.execute(f"UPDATE {table} SET {column_name} = %s WHERE id = %s", 
+                                                         (cleaned_value, row_id))
+                                            print(f"  Limpiado registro {row_id} en columna {column_name}")
+                                
+                            except Exception as col_error:
+                                print(f"  Error limpiando columna {column_name}: {str(col_error)}")
+                                continue
+                        
+                        self.connection.commit()
+                        print(f"Tabla {table} limpiada")
+                    
+                except Exception as table_error:
+                    print(f"Error limpiando tabla {table}: {str(table_error)}")
+                    continue
+            
+            print("Limpieza de base de datos completada")
+            
+        except Exception as e:
+            print(f"Error en limpieza de base de datos: {str(e)}")
+            if self.connection:
+                self.connection.rollback() 
