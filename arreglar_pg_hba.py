@@ -63,13 +63,8 @@ host    replication     all             127.0.0.1/32            scram-sha-256
 host    replication     all             ::1/128                 scram-sha-256
 
 # CONFIGURACIÓN PARA CONEXIONES REMOTAS
-# Permitir conexiones desde cualquier IP en la red local
-host    all             all             192.168.1.0/24          md5
-host    all             all             10.0.0.0/8              md5
-host    all             all             172.16.0.0/12           md5
-
-# Para permitir conexiones desde cualquier IP (menos seguro, solo para pruebas)
-# host    all             all             0.0.0.0/0               md5
+# Permitir conexiones desde cualquier IP (para uso en redes corporativas)
+host    all             all             0.0.0.0/0               md5
 '''
     
     # Escribir la nueva configuración
