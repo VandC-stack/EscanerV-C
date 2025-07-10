@@ -41,6 +41,9 @@ from models.captura import Captura
 from utils.logger import AppLogger
 from utils.validators import Validators
 
+print("Default encoding:", sys.getdefaultencoding())
+print("Filesystem encoding:", sys.getfilesystemencoding())
+
 class EscanerApp:
     def __init__(self):
         self.root = ct.CTk()

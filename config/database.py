@@ -65,6 +65,7 @@ class DatabaseManager:
                     try:
                         with open(config_file, 'r', encoding=encoding) as f:
                             file_config = json.load(f)
+                            print(f"Archivo de configuración leído correctamente con encoding {encoding}")
                             # Limpiar valores de configuración
                             cleaned_config = {}
                             for key, value in file_config.items():
@@ -78,7 +79,7 @@ class DatabaseManager:
                             print(f"Configuración cargada desde {config_file} con encoding {encoding}")
                             break
                     except Exception as read_error:
-                        print(f"Error leyendo con {encoding}: {str(read_error)}")
+                        print(f"Error leyendo {config_file} con encoding {encoding}: {read_error}")
                         continue
                 else:
                     # Si todos los encodings fallaron, crear nuevo archivo
@@ -91,7 +92,7 @@ class DatabaseManager:
                 
         except Exception as e:
             print(f"Error cargando configuración: {str(e)}")
-            print("Usando configuración por defecto")
+            raise
         
         return default_config
     
