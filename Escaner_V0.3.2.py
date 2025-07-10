@@ -69,6 +69,13 @@ class EscanerApp:
             # Inicializar base de datos
             self.db_manager = DatabaseManager()
             
+            # Intentar arreglar problemas de codificación
+            try:
+                if not self.db_manager.fix_encoding_issues():
+                    print("Advertencia: No se pudieron arreglar problemas de codificación")
+            except Exception as encoding_error:
+                print(f"Error arreglando codificación: {str(encoding_error)}")
+            
             # Crear tablas si no existen
             self.db_manager.create_tables()
             

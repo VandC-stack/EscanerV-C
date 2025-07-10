@@ -1,7 +1,9 @@
-# Dependencias esenciales para Escáner V&C
+# Dependencias actualizadas para Escáner V&C
+# Actualizado el: 2025-07-10 10:29:40
+
 customtkinter==5.2.2
-pillow==11.2.1
-pandas==2.3.0
+pillow==11.3.0
+pandas==2.3.1
 openpyxl==3.1.5
 psycopg2-binary==2.9.10
 python-dotenv==1.1.1

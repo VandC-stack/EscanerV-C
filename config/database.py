@@ -40,10 +40,21 @@ class DatabaseManager:
             bool: True si la conexión fue exitosa
         """
         try:
-            self.connection = psycopg2.connect(**self.config)
+            # Agregar parámetros de codificación explícitos
+            connection_params = self.config.copy()
+            connection_params.update({
+                'client_encoding': 'UTF8',
+                'options': '-c client_encoding=UTF8'
+            })
+            
+            self.connection = psycopg2.connect(**connection_params)
+            
+            # Establecer codificación en la conexión
+            self.connection.set_client_encoding('UTF8')
+            
             return True
         except Exception as e:
-            print(f"Error conectando a la base de datos: {str(e)}")
+            print(f"Error conectando a la base de datos con encoding UTF8: {str(e)}")
             return False
     
     def disconnect(self):
@@ -71,14 +82,41 @@ class DatabaseManager:
             
             cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             
+            # Manejar parámetros con codificación segura
             if params:
-                cursor.execute(query, params)
+                # Convertir parámetros a UTF-8 si son strings
+                safe_params = []
+                for param in params:
+                    if isinstance(param, str):
+                        try:
+                            # Intentar decodificar y recodificar para limpiar caracteres problemáticos
+                            safe_param = param.encode('utf-8', errors='ignore').decode('utf-8')
+                            safe_params.append(safe_param)
+                        except:
+                            safe_params.append(param)
+                    else:
+                        safe_params.append(param)
+                cursor.execute(query, tuple(safe_params))
             else:
                 cursor.execute(query)
             
             if fetch:
                 result = cursor.fetchall()
-                return [dict(row) for row in result]
+                # Limpiar resultados de caracteres problemáticos
+                cleaned_result = []
+                for row in result:
+                    cleaned_row = {}
+                    for key, value in row.items():
+                        if isinstance(value, str):
+                            try:
+                                cleaned_value = value.encode('utf-8', errors='ignore').decode('utf-8')
+                                cleaned_row[key] = cleaned_value
+                            except:
+                                cleaned_row[key] = value
+                        else:
+                            cleaned_row[key] = value
+                    cleaned_result.append(cleaned_row)
+                return cleaned_result
             else:
                 self.connection.commit()
                 return []
@@ -412,4 +450,38 @@ class DatabaseManager:
             return False
         except Exception as e:
             print(f"Error probando conexión: {str(e)}")
-            return False 
+            return False
+    
+    def fix_encoding_issues(self) -> bool:
+        """
+        Intenta arreglar problemas de codificación en la base de datos
+        
+        Returns:
+            bool: True si se pudo arreglar
+        """
+        try:
+            if not self.connect():
+                return False
+            
+            # Verificar codificación actual
+            cursor = self.connection.cursor()
+            cursor.execute("SHOW client_encoding")
+            current_encoding = cursor.fetchone()[0]
+            print(f"Codificación actual del cliente: {current_encoding}")
+            
+            cursor.execute("SHOW server_encoding")
+            server_encoding = cursor.fetchone()[0]
+            print(f"Codificación del servidor: {server_encoding}")
+            
+            # Establecer codificación UTF8
+            self.connection.set_client_encoding('UTF8')
+            
+            cursor.close()
+            return True
+            
+        except Exception as e:
+            print(f"Error arreglando codificación: {str(e)}")
+            return False
+        finally:
+            if self.connection:
+                self.disconnect() 
