@@ -44,12 +44,14 @@ class DatabaseManager:
     
     def _load_database_config(self) -> Dict:
         """
-        Carga la configuración de la base de datos desde archivo
+        Carga la configuración de la base de datos con detección automática
         
         Returns:
             Dict: Configuración de la base de datos
         """
         config_file = "database_config.json"
+        
+        # Configuración por defecto
         default_config = {
             "host": "localhost",
             "port": 5432,
@@ -58,6 +60,17 @@ class DatabaseManager:
             "database": "Escaner"
         }
         
+        # Detectar si estamos en el servidor o en un cliente
+        server_ip = self._detect_server_ip()
+        if server_ip and server_ip != "localhost":
+            # Estamos en un cliente, usar IP del servidor
+            default_config["host"] = server_ip
+            print(f"Detectado cliente. Conectando a servidor: {server_ip}")
+        else:
+            # Estamos en el servidor, usar localhost
+            print("Detectado servidor. Usando conexión local.")
+        
+        # Cargar configuración del archivo si existe
         try:
             if os.path.exists(config_file):
                 # Intentar leer con diferentes codificaciones
@@ -66,17 +79,16 @@ class DatabaseManager:
                         with open(config_file, 'r', encoding=encoding) as f:
                             file_config = json.load(f)
                             print(f"Archivo de configuración leído correctamente con encoding {encoding}")
-                            # Limpiar valores de configuración
-                            cleaned_config = {}
-                            for key, value in file_config.items():
-                                if isinstance(value, str):
-                                    cleaned_config[key] = self._clean_connection_param(value)
-                                else:
-                                    cleaned_config[key] = value
                             
-                            # Combinar configuración por defecto con archivo limpio
-                            default_config.update(cleaned_config)
-                            print(f"Configuración cargada desde {config_file} con encoding {encoding}")
+                            # Si el host es "auto", usar detección automática
+                            if file_config.get("host") == "auto":
+                                print("Usando detección automática de servidor")
+                                # La configuración ya está detectada arriba
+                            else:
+                                # Usar la configuración del archivo
+                                default_config.update(file_config)
+                                print(f"Configuración cargada desde {config_file}")
+                            
                             break
                     except Exception as read_error:
                         print(f"Error leyendo {config_file} con encoding {encoding}: {read_error}")
@@ -95,6 +107,67 @@ class DatabaseManager:
             raise
         
         return default_config
+        
+        return default_config
+    
+    def _detect_server_ip(self) -> str:
+        """
+        Detecta automáticamente la IP del servidor
+        
+        Returns:
+            str: IP del servidor o "localhost" si estamos en el servidor
+        """
+        try:
+            # Obtener IP local
+            import socket
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            
+            # Lista de IPs conocidas del servidor
+            server_ips = [
+                "192.168.1.167",  # Tu IP actual
+                "192.168.100.1",  # Posible IP del servidor en otra red
+                "10.0.0.1",       # Otras posibles IPs del servidor
+                "172.16.0.1"
+            ]
+            
+            # Si nuestra IP está en la lista del servidor, estamos en el servidor
+            if local_ip in server_ips:
+                return "localhost"
+            
+            # Si no, intentar conectarse a las IPs del servidor
+            for server_ip in server_ips:
+                if self._test_server_connection(server_ip):
+                    return server_ip
+            
+            # Si no se puede conectar a ninguna IP conocida, usar localhost
+            return "localhost"
+            
+        except Exception as e:
+            print(f"Error detectando servidor: {e}")
+            return "localhost"
+    
+    def _test_server_connection(self, server_ip: str) -> bool:
+        """
+        Prueba si se puede conectar a un servidor
+        
+        Args:
+            server_ip: IP del servidor a probar
+            
+        Returns:
+            bool: True si se puede conectar
+        """
+        try:
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(3)  # Timeout corto
+            resultado = sock.connect_ex((server_ip, 5432))
+            sock.close()
+            return resultado == 0
+        except Exception:
+            return False
     
     def _create_default_config(self, config_file: str, config: Dict):
         """
