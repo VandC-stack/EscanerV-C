@@ -135,21 +135,14 @@ class DatabaseManager:
                 if isinstance(value, str):
                     connection_params[key] = self._clean_connection_param(value)
             
-            # Usar Latin1 que es más permisivo con caracteres problemáticos
-            connection_params['client_encoding'] = 'LATIN1'
+            # Configurar encoding UTF-8 desde el inicio
+            connection_params['client_encoding'] = 'UTF8'
             
-            print(f"Intentando conexión con encoding LATIN1...")
+            print(f"Intentando conexión con encoding UTF8...")
             
             self.connection = psycopg2.connect(**connection_params)
             
-            # Una vez conectado, intentar cambiar a UTF8
-            try:
-                self.connection.set_client_encoding('UTF8')
-                print("Codificación cambiada a UTF8 exitosamente")
-            except Exception as encoding_error:
-                print(f"No se pudo cambiar a UTF8: {str(encoding_error)}")
-                # Mantener LATIN1 si no se puede cambiar
-                pass
+            print("Conexión exitosa con UTF8")
             
             print("Conexión exitosa")
             return True
