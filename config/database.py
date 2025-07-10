@@ -60,11 +60,30 @@ class DatabaseManager:
         
         try:
             if os.path.exists(config_file):
-                with open(config_file, 'r', encoding='utf-8') as f:
-                    file_config = json.load(f)
-                    # Combinar configuración por defecto con archivo
-                    default_config.update(file_config)
-                    print(f"Configuración cargada desde {config_file}")
+                # Intentar leer con diferentes codificaciones
+                for encoding in ['utf-8', 'latin1', 'cp1252']:
+                    try:
+                        with open(config_file, 'r', encoding=encoding) as f:
+                            file_config = json.load(f)
+                            # Limpiar valores de configuración
+                            cleaned_config = {}
+                            for key, value in file_config.items():
+                                if isinstance(value, str):
+                                    cleaned_config[key] = self._clean_connection_param(value)
+                                else:
+                                    cleaned_config[key] = value
+                            
+                            # Combinar configuración por defecto con archivo limpio
+                            default_config.update(cleaned_config)
+                            print(f"Configuración cargada desde {config_file} con encoding {encoding}")
+                            break
+                    except Exception as read_error:
+                        print(f"Error leyendo con {encoding}: {str(read_error)}")
+                        continue
+                else:
+                    # Si todos los encodings fallaron, crear nuevo archivo
+                    print("No se pudo leer el archivo de configuración. Creando nuevo...")
+                    self._create_default_config(config_file, default_config)
             else:
                 # Crear archivo de configuración por defecto
                 self._create_default_config(config_file, default_config)
@@ -85,8 +104,17 @@ class DatabaseManager:
             config: Configuración por defecto
         """
         try:
+            # Limpiar configuración antes de guardar
+            cleaned_config = {}
+            for key, value in config.items():
+                if isinstance(value, str):
+                    cleaned_config[key] = self._clean_connection_param(value)
+                else:
+                    cleaned_config[key] = value
+            
             with open(config_file, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=4, ensure_ascii=False)
+                json.dump(cleaned_config, f, indent=4, ensure_ascii=True)
+            print(f"Archivo de configuración limpio creado: {config_file}")
         except Exception as e:
             print(f"Error creando archivo de configuración: {str(e)}")
     
@@ -100,6 +128,11 @@ class DatabaseManager:
         try:
             # Configuración específica para manejar el error 0xab
             connection_params = self.config.copy()
+            
+            # Limpiar parámetros de conexión de caracteres problemáticos
+            for key, value in connection_params.items():
+                if isinstance(value, str):
+                    connection_params[key] = self._clean_connection_param(value)
             
             # Usar Latin1 que es más permisivo con caracteres problemáticos
             connection_params['client_encoding'] = 'LATIN1'
@@ -520,6 +553,38 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error probando conexión: {str(e)}")
             return False
+    
+    def _clean_connection_param(self, text: str) -> str:
+        """
+        Limpia parámetros de conexión de caracteres problemáticos
+        
+        Args:
+            text: Texto a limpiar
+            
+        Returns:
+            str: Texto limpio
+        """
+        if not isinstance(text, str):
+            return text
+            
+        try:
+            # Método más agresivo para parámetros de conexión
+            # Convertir a bytes y filtrar caracteres problemáticos
+            text_bytes = text.encode('latin1', errors='ignore')
+            
+            # Solo mantener caracteres ASCII seguros para conexión
+            safe_bytes = bytearray()
+            for byte in text_bytes:
+                if byte in range(32, 127):  # Solo ASCII imprimible
+                    safe_bytes.append(byte)
+            
+            # Convertir de vuelta a string
+            cleaned = safe_bytes.decode('ascii', errors='ignore')
+            return cleaned
+            
+        except Exception as e:
+            print(f"Error limpiando parámetro de conexión: {str(e)}")
+            return text
     
     def _clean_string(self, text: str) -> str:
         """
