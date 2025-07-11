@@ -23,8 +23,8 @@ ct.set_appearance_mode("dark")
 ct.set_default_color_theme("dark-blue")
 
 # Constantes de versión
-#VERSION_ACTUAL = "0.3.2"
-#FECHA_COMPILACION = "2025-07-08"
+#VERSION_ACTUAL = "0.3.0"
+#FECHA_COMPILACION = "2025-01-28"
 
 # Configuración de logging
 logging.basicConfig(
@@ -40,6 +40,9 @@ from models.codigo_item import CodigoItem
 from models.captura import Captura
 from utils.logger import AppLogger
 from utils.validators import Validators
+
+print("Default encoding:", sys.getdefaultencoding())
+print("Filesystem encoding:", sys.getfilesystemencoding())
 
 class EscanerApp:
     def __init__(self):
@@ -68,6 +71,13 @@ class EscanerApp:
         try:
             # Inicializar base de datos
             self.db_manager = DatabaseManager()
+            
+            # Intentar arreglar problemas de codificación
+            try:
+                if not self.db_manager.fix_encoding_issues():
+                    print("Advertencia: No se pudieron arreglar problemas de codificación")
+            except Exception as encoding_error:
+                print(f"Error arreglando codificación: {str(encoding_error)}")
             
             # Crear tablas si no existen
             self.db_manager.create_tables()
