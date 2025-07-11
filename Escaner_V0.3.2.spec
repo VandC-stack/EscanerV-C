@@ -5,7 +5,7 @@ a = Analysis(
     ['Escaner_V0.3.2.py'],
     pathex=[],
     binaries=[],
-    datas=[('resources', 'resources'), ('models', 'models'), ('utils', 'utils'), ('config', 'config')],
+    datas=[('easter_egg_doom.py', '.'), ('resources', 'resources')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
