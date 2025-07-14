@@ -331,7 +331,8 @@ class LoginWindow:
         """Crea la interfaz de login desde JSON"""
         diseño = cargar_diseño("theme/claseLogin.json")
 
-        self.frame = ct.CTkFrame(self.master)
+        # Frame principal blanco
+        self.frame = ct.CTkFrame(self.master, fg_color=diseño["frame"]["fg_color"])
         self.frame.pack(
             fill=diseño["frame"]["fill"],
             expand=diseño["frame"]["expand"],
@@ -339,56 +340,89 @@ class LoginWindow:
             pady=diseño["frame"]["pady"]
         )
 
-        # Título
+        # Título centrado arriba
         self.label_title = ct.CTkLabel(
             self.frame,
             text=diseño["titulo"]["text"],
-            font=tuple(diseño["titulo"]["font"])
+            font=tuple(diseño["titulo"]["font"]),
+            text_color=diseño["titulo"]["text_color"]
         )
         self.label_title.pack(pady=tuple(diseño["titulo"]["pady"]))
 
+        # Caja amarilla que contiene inputs y botón
+        self.form_box = ct.CTkFrame(
+            self.frame,
+            fg_color=diseño["form_box"]["fg_color"],
+            corner_radius=diseño["form_box"]["corner_radius"]
+        )
+        self.form_box.pack(padx=diseño["form_box"]["padx"], pady=diseño["form_box"]["pady"])
+
+        # Variables de entrada
         self.user_var = StringVar()
         self.pass_var = StringVar()
 
-        # Usuario
-        self.label_user = ct.CTkLabel(self.frame, text=diseño["labels"][0]["text"])
-        self.label_user.pack(anchor=diseño["labels"][0]["anchor"])
+        # Campo de usuario
+        self.entry_user = ct.CTkEntry(
+            self.form_box,
+            textvariable=self.user_var,
+            width=diseño["entry"]["width"],
+            height=diseño["entry"]["height"],
+            fg_color=diseño["entry"]["fg_color"],
+            border_color=diseño["entry"]["border_color"],
+            border_width=diseño["entry"]["border_width"],
+            corner_radius=diseño["entry"]["corner_radius"],
+            text_color=diseño["entry"]["text_color"],
+            placeholder_text="Usuario"
+        )
+        self.entry_user.pack(pady=tuple(diseño["entry_pady"]))
 
-        self.entry_user = ct.CTkEntry(self.frame, textvariable=self.user_var)
-        self.entry_user.pack(fill="x", pady=tuple(diseño["entry_pady"]))
+        # Campo de contraseña
+        self.entry_pass = ct.CTkEntry(
+            self.form_box,
+            textvariable=self.pass_var,
+            show="*",
+            width=diseño["entry"]["width"],
+            height=diseño["entry"]["height"],
+            fg_color=diseño["entry"]["fg_color"],
+            border_color=diseño["entry"]["border_color"],
+            border_width=diseño["entry"]["border_width"],
+            corner_radius=diseño["entry"]["corner_radius"],
+            text_color=diseño["entry"]["text_color"],
+            placeholder_text="Contraseña"
+        )
+        self.entry_pass.pack(pady=tuple(diseño["entry_pady"]))
 
-        # Contraseña
-        self.label_pass = ct.CTkLabel(self.frame, text=diseño["labels"][1]["text"])
-        self.label_pass.pack(anchor=diseño["labels"][1]["anchor"])
-
-        self.pass_row = ct.CTkFrame(self.frame)
-        self.pass_row.pack(fill="x", pady=tuple(diseño["entry_pady"]))
-
-        self.entry_pass = ct.CTkEntry(self.pass_row, textvariable=self.pass_var, show="*")
-        self.entry_pass.pack(side="left", fill="x", expand=True)
-
+        # Botón de login
         self.login_button = ct.CTkButton(
-            self.pass_row,
+            self.form_box,
             text=diseño["login_button"]["text"],
             width=diseño["login_button"]["width"],
+            height=diseño["login_button"]["height"],
+            fg_color=diseño["login_button"]["fg_color"],
+            text_color=diseño["login_button"]["text_color"],
+            hover_color=diseño["login_button"]["hover_color"],
+            border_color=diseño["login_button"]["border_color"],
+            border_width=diseño["login_button"]["border_width"],
+            corner_radius=diseño["login_button"]["corner_radius"],
+            font=tuple(diseño["login_button"]["font"]),
             command=self.try_login
         )
-        self.login_button.pack(side="right", padx=(8, 0))
+        self.login_button.pack(pady=tuple(diseño["login_button"]["pady"]))
 
-        # Error label
+        # Etiqueta de error (oculta al inicio)
         self.error_label = ct.CTkLabel(
-            self.frame,
+            self.form_box,
             text=diseño["error_label"]["text"],
             text_color=diseño["error_label"]["text_color"],
             font=tuple(diseño["error_label"]["font"])
         )
         self.error_label.pack(pady=tuple(diseño["error_label"]["pady"]))
 
-        # Eventos
+        # Eventos para usar Enter
         self.entry_user.bind("<Return>", lambda e: self.entry_pass.focus_set())
         self.entry_pass.bind("<Return>", lambda e: self.try_login())
         self.entry_user.focus_set()
-    
+
     def try_login(self):
         """Intenta hacer login"""
         usuario = self.user_var.get().strip()
