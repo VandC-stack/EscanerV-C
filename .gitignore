@@ -60,3 +60,5 @@ credenciales.json
 # Backup files
 *.bak
 *.backup 
+
+postgres-data/ 
