@@ -1,17 +1,3 @@
-# CodeViz Research Context
-
-> **Note**: This file contains research context from CodeViz. Most recent contexts are at the bottom.
-
----
-
-## Research Query
-
-Nececito un diagrama de flujo del funcionamiento de mi aplicacion Escaner_V0.3.2
-
-*Session: 6a57d34c8392c9b87979677ceff0684c | Generated: 7/10/2025, 10:37:26 AM*
-
-### Analysis Summary
-
 # Diagrama de Flujo del Funcionamiento de la Aplicación Escaner_V0.3.2
 
 Este reporte detalla el flujo de funcionamiento de la aplicación **Escaner_V0.3.2**, describiendo sus componentes principales, sus responsabilidades y las interacciones clave entre ellos.
