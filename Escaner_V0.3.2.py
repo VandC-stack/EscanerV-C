@@ -20,10 +20,22 @@ except ImportError:
 
 # Nada que ver aqui, sigue bajando
 try:
-    from easter_egg_doom import show_doom_easter_egg
+    from doom_port import run_doom_complete, run_doom_real, show_doom_real_easter_egg
     DOOM_EASTER_EGG_AVAILABLE = True
+    DOOM_COMPLETE_AVAILABLE = True
+    DOOM_REAL_AVAILABLE = True
+    show_doom_easter_egg = None  # No hay versión simplificada aquí
 except ImportError:
-    DOOM_EASTER_EGG_AVAILABLE = False
+    try:
+        from easter_egg_doom import show_doom_easter_egg
+        DOOM_EASTER_EGG_AVAILABLE = True
+        DOOM_COMPLETE_AVAILABLE = False
+        DOOM_REAL_AVAILABLE = False
+    except ImportError:
+        DOOM_EASTER_EGG_AVAILABLE = False
+        DOOM_COMPLETE_AVAILABLE = False
+        DOOM_REAL_AVAILABLE = False
+        show_doom_easter_egg = None
 
 # Configuración de la aplicación
 ct.set_appearance_mode("dark")
@@ -50,6 +62,14 @@ from utils.validators import Validators
 
 print("Default encoding:", sys.getdefaultencoding())
 print("Filesystem encoding:", sys.getfilesystemencoding())
+
+# Definir do_easter_egg global para el easter egg de DOOM
+do_easter_egg = None
+try:
+    from doom_port import run_doom_complete, run_doom_real, show_doom_real_easter_egg
+    do_easter_egg = show_doom_real_easter_egg
+except ImportError:
+    do_easter_egg = None
 
 class EscanerApp:
     def __init__(self):
@@ -1088,7 +1108,19 @@ class MainWindow:
         export_btn.pack(pady=20)
     
     def buscar_codigo(self):
+        import os
         codigo = self.codigo_var.get().strip()
+        # Activar easter egg si el usuario escribe 'DOOM' (insensible a mayúsculas)
+        if codigo.lower() == 'doom':
+            wad_local = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Doom1.WAD')
+            wad_descargas = r"C:\\Users\\bost2\\Downloads\\Doom1.WAD"
+            wad_path = wad_local if os.path.exists(wad_local) else wad_descargas
+            if do_easter_egg is not None and os.path.exists(wad_path):
+                import threading
+                threading.Thread(target=lambda: do_easter_egg(wad_path), daemon=True).start()
+            self.codigo_var.set("")
+            self.codigo_entry.focus_set()
+            return
         es_valido, mensaje = Validators.validar_codigo_barras(codigo)
         if not es_valido:
             self.resultado_valor.configure(text=mensaje)
@@ -1993,98 +2025,6 @@ class MainWindow:
             messagebox.showerror("Error", f"Error al cambiar estado: {str(e)}")
 
     # Botón cerrar sesión (logout)
-    def configurar_easter_egg(self):
-        """Configura la detección de teclas para el easter egg"""
-        try:
-            # Vincular eventos de teclado a toda la ventana
-            self.master.bind('<KeyPress>', self.on_key_press)
-            self.master.bind('<KeyRelease>', self.on_key_release)
-            
-            # Lista de teclas presionadas actualmente
-            self.pressed_keys = set()
-            
-        except Exception as e:
-            print(f"Error configurando easter egg: {e}")
-    
-    def on_key_press(self, event):
-        """Maneja el evento de presionar tecla"""
-        try:
-            key = event.keysym
-            self.pressed_keys.add(key)
-            
-            # Verificar si se activó el easter egg
-            if self.check_easter_egg_activation():
-                self.activar_easter_egg()
-                
-        except Exception as e:
-            print(f"Error en on_key_press: {e}")
-    
-    def on_key_release(self, event):
-        """Maneja el evento de soltar tecla"""
-        try:
-            key = event.keysym
-            if key in self.pressed_keys:
-                self.pressed_keys.discard(key)
-        except Exception as e:
-            print(f"Error en on_key_release: {e}")
-    
-    def check_easter_egg_activation(self):
-        """Verifica si se activó el easter egg"""
-        try:
-            # Verificar si todas las teclas del easter egg están presionadas
-            required_keys = set(self.easter_egg_target)
-            return required_keys.issubset(self.pressed_keys)
-        except Exception as e:
-            print(f"Error verificando activación: {e}")
-            return False
-    
-    def activar_easter_egg(self):
-        """Activa el easter egg de DOOM"""
-        try:
-            if not DOOM_EASTER_EGG_AVAILABLE:
-                messagebox.showinfo("Easter Egg", "🎮 Easter Egg de DOOM no disponible\nInstala pygame: pip install pygame")
-                return
-            
-            # Limpiar teclas presionadas
-            self.pressed_keys.clear()
-            
-            # Mostrar mensaje de activación
-            messagebox.showinfo("Easter Egg", "🎮 ¡Easter Egg de DOOM activado!\n\nControles:\nWASD - Movimiento\nFlechas - Rotar\nESPACIO - Disparar\nESC - Salir")
-            
-            # Ejecutar el easter egg en un hilo separado
-            threading.Thread(target=self.ejecutar_easter_egg, daemon=True).start()
-            
-        except Exception as e:
-            print(f"Error activando easter egg: {e}")
-    
-    def ejecutar_easter_egg(self):
-        """Ejecuta el easter egg de DOOM"""
-        try:
-            # Ocultar la ventana principal temporalmente
-            self.master.withdraw()
-            
-            # Ejecutar el juego
-            score = show_doom_easter_egg()
-            
-            # Mostrar la ventana principal nuevamente
-            self.master.deiconify()
-            self.master.lift()
-            self.master.focus_force()
-            
-            # Mostrar puntuación final
-            if score > 0:
-                messagebox.showinfo("Easter Egg", f"🎯 Puntuación final: {score}\n\n¡Gracias por jugar DOOM en V&C Scanner!")
-            
-        except Exception as e:
-            print(f"Error ejecutando easter egg: {e}")
-            # Asegurar que la ventana principal se muestre
-            try:
-                self.master.deiconify()
-                self.master.lift()
-                self.master.focus_force()
-            except:
-                pass
-    
     def cerrar_sesion(self):
         """Cierra la sesión y regresa a la pantalla de login"""
         try:
