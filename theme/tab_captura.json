@@ -1,0 +1,94 @@
+{
+  "main_frame": {
+    "fg_color": "#000000",
+    "width": 800,
+    "height": 600,
+    "padx": 20,
+    "pady": 20
+  },
+  "labels": {
+    "titulo": {
+      "text": "Captura de Cumplimientos",
+      "font": ["Segoe UI", 18, "bold"],
+      "text_color": "#00FFAA",
+      "pady": [0, 20]
+    },
+    "codigo_barras": {
+      "text": "Código de barras:",
+      "font": ["Segoe UI", 13, "bold"],
+      "text_color": "#00FFAA",
+      "padx": 10,
+      "pady": [10, 0],
+      "anchor": "w"
+    },
+    "item": {
+      "text": "Item:",
+      "font": ["Segoe UI", 13, "bold"],
+      "text_color": "#00FFAA",
+      "padx": 10,
+      "pady": [10, 0],
+      "anchor": "w"
+    },
+    "cumple": {
+      "text": "¿Cumple?",
+      "font": ["Segoe UI", 13, "bold"],
+      "text_color": "#00FFAA",
+      "padx": 10,
+      "pady": [10, 0],
+      "anchor": "w"
+    },
+    "motivo": {
+      "text": "Motivo:",
+      "font": ["Segoe UI", 13, "bold"],
+      "text_color": "#00FFAA",
+      "padx": 10,
+      "pady": [10, 0],
+      "anchor": "w"
+    }
+  },
+  "buttons": {
+    "subir_pendientes": {
+      "text": "Subir capturas pendientes",
+      "font": ["Segoe UI", 12, "bold"],
+      "fg_color": "#00FFAA",
+      "text_color": "#000000",
+      "border_width": 2,
+      "border_color": "#00FFAA",
+      "corner_radius": 10,
+      "pady": [0, 10]
+    },
+    "guardar": {
+      "text": "Guardar",
+      "font": ["Segoe UI", 12, "bold"],
+      "fg_color": "#00FFAA",
+      "text_color": "#000000",
+      "border_width": 2,
+      "border_color": "#00FFAA",
+      "corner_radius": 10,
+      "pady": [10, 0]
+    }
+  },
+  "entries": {
+    "width": 400,
+    "height": 36,
+    "corner_radius": 12,
+    "border_width": 2,
+    "border_color": "#00FFAA",
+    "fg_color": "#000000",
+    "text_color": "#00FFAA",
+    "font": ["Segoe UI", 13]
+  },
+  "optionmenu": {
+    "width": 400,
+    "height": 36,
+    "fg_color": "#000000",
+    "text_color": "#00FFAA",
+    "font": ["Segoe UI", 13]
+  },
+  "frame": {
+    "fg_color": "#000000",
+    "fill_x": true,
+    "pady_campos": [0, 20],
+    "pady_motivo_guardar": [0, 10]
+  }
+}

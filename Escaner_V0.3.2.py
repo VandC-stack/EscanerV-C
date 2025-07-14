@@ -13,14 +13,27 @@ import re
 import math
 import hashlib
 import json
+
 try:
     from tkcalendar import DateEntry 
 except ImportError:
     DateEntry = None
 
-# Configuración de la aplicación
-ct.set_appearance_mode("dark")
-ct.set_default_color_theme("dark-blue")
+# Función general para cargar JSON de diseño
+def cargar_diseño(path):
+    import json
+    import os
+
+    if not os.path.exists(path):
+        print(f"[ERROR] Archivo de diseño no encontrado: {path}")
+        return {}
+
+    try:
+        with open(path, 'r', encoding='utf-8') as file:
+            return json.load(file)
+    except Exception as e:
+        print(f"[ERROR] Error cargando diseño desde {path}: {e}")
+        return {}
 
 # Constantes de versión
 #VERSION_ACTUAL = "0.3.0"
@@ -77,7 +90,7 @@ class EscanerApp:
                 if not self.db_manager.fix_encoding_issues():
                     print("Advertencia: No se pudieron arreglar problemas de codificación")
             except Exception as encoding_error:
-                print(f"Error arreglando codificación: {str(encoding_error)}")
+                    print(f"Error arreglando codificación: {str(encoding_error)}")
             
             # Crear tablas si no existen
             self.db_manager.create_tables()
@@ -194,104 +207,115 @@ class EscanerApp:
     def ejecutar(self):
         """Ejecuta la aplicación"""
         self.root.mainloop()
-
+    
     def mostrar_historial_cargas_y_consultas(self):
-        import tkinter as tk
-        from tkinter import ttk
-        import customtkinter as ct
-        # Crear ventana toplevel
-        top = ct.CTkToplevel(self.master)
-        top.title("Historial del día")
-        top.geometry("700x500")
-        top.configure(fg_color="#000000")
+        diseño = cargar_diseño("theme/claseEscaner.json")
+        
+        top = ct.CTkToplevel(self.root)
+        top.title(diseño["ventana"]["title"])
+        top.geometry(diseño["ventana"]["geometry"])
+        top.configure(fg_color=diseño["ventana"]["fg_color"])
         top.lift()
         top.attributes('-topmost', True)
         top.focus_force()
 
-        # Frame principal
-        main_frame = ct.CTkFrame(top, fg_color="#000000")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        # Main Frame
+        main_frame = ct.CTkFrame(top, fg_color=diseño["main_frame"]["fg_color"])
+        main_frame.pack(**diseño["main_frame"]["pack"])
 
-        # Sección de cargas CLP
-        ct.CTkLabel(
-            main_frame, text="Cargas CLP del día:", font=("Segoe UI", 16, "bold"), text_color="#00FFAA", fg_color="#000000"
-        ).pack(anchor="w", pady=(0, 5))
+        # Labels
+        for label_config in diseño["labels"]:
+            label = ct.CTkLabel(
+                main_frame,
+                text=label_config["text"],
+                font=tuple(label_config["font"]),
+                text_color=label_config["text_color"],
+                fg_color=diseño["ventana"]["fg_color"]
+            )
+            label.pack(**label_config["pack"])
+
+        # TextBox de cargas
         try:
             query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE fecha_carga::date = CURRENT_DATE ORDER BY fecha_carga DESC"
             cargas = self.db_manager.execute_query(query_cargas)
         except Exception as e:
             cargas = []
+
         cargas_text = "Sin cargas hoy."
         if cargas:
             cargas_text = "\n".join([
-                f"{c['fecha_carga']}: {c['archivo']} (Usuario: {c['usuario']}, Códigos: {c['codigos_agregados']})" for c in cargas
+                f"{c['fecha_carga']}: {c['archivo']} (Usuario: {c['usuario']}, Códigos: {c['codigos_agregados']})"
+                for c in cargas
             ])
-        cargas_label = ct.CTkTextbox(main_frame, width=650, height=60, fg_color="#111111", text_color="#00FFAA", font=("Segoe UI", 12))
+        
+        textbox_cfg = diseño["textboxes"][0]
+        cargas_label = ct.CTkTextbox(
+            main_frame,
+            width=textbox_cfg["width"],
+            height=textbox_cfg["height"],
+            fg_color=textbox_cfg["fg_color"],
+            text_color=textbox_cfg["text_color"],
+            font=tuple(textbox_cfg["font"])
+        )
         cargas_label.insert("1.0", cargas_text)
         cargas_label.configure(state="disabled")
-        cargas_label.pack(pady=(0, 15))
+        cargas_label.pack(**textbox_cfg["pack"])
 
-        # Sección de consultas recientes
-        ct.CTkLabel(
-            main_frame, text="Consultas recientes:", font=("Segoe UI", 16, "bold"), text_color="#00FFAA", fg_color="#000000"
-        ).pack(anchor="w", pady=(0, 5))
+        # Tabla de consultas
         try:
             query_consultas = "SELECT fecha_hora, usuario, codigo_barras, resultado FROM consultas WHERE fecha_hora::date = CURRENT_DATE ORDER BY fecha_hora DESC LIMIT 50"
             consultas = self.db_manager.execute_query(query_consultas)
         except Exception as e:
             consultas = []
-        # Tabla de consultas
-        table_frame = ct.CTkFrame(main_frame, fg_color="#111111")
+
+        table_frame = ct.CTkFrame(main_frame, fg_color=diseño["table"]["style"]["Treeview"]["background"])
         table_frame.pack(fill="both", expand=True, pady=(0, 10))
-        columns = ("Fecha/Hora", "Usuario", "Código de Barras", "Resultado")
+
+        columns = diseño["table"]["columns"]
         tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
         for col in columns:
             tree.heading(col, text=col)
-        # Estilo ttk para fondo oscuro y tipo Excel
+            if col in diseño["table"]["column_config"]:
+                cfg = diseño["table"]["column_config"][col]
+                tree.column(col, width=cfg["width"], anchor=cfg["anchor"])
+
+        # Estilos ttk
         style = ttk.Style()
-        style.theme_use('default')
-        style.configure("Treeview",
-                        background="#111111",
-                        foreground="#00FFAA",
-                        rowheight=24,
-                        fieldbackground="#111111",
-                        font=("Segoe UI", 11),
-                        bordercolor="#222222",
-                        borderwidth=1)
-        style.configure("Treeview.Heading",
-                        background="#00FFAA",
-                        foreground="#000000",
-                        font=("Segoe UI", 13, "bold"),
-                        relief="flat")
-        style.map('Treeview', background=[('selected', '#222222')])
-        style.layout("Treeview", [
-            ('Treeview.treearea', {'sticky': 'nswe'})
-        ])
-        # Ajustar ancho de columnas
-        tree.column("Fecha/Hora", width=160, anchor="center")
-        tree.column("Usuario", width=100, anchor="center")
-        tree.column("Código de Barras", width=220, anchor="center")
-        tree.column("Resultado", width=120, anchor="center")
-        # Insertar datos con rayado
+        style.theme_use("default")
+        style.configure("Treeview", **diseño["table"]["style"]["Treeview"])
+        style.configure("Treeview.Heading", **diseño["table"]["style"]["Treeview.Heading"])
+        style.map("Treeview", background=[("selected", diseño["table"]["style"]["selected"])])
+        style.layout("Treeview", [('Treeview.treearea', {'sticky': 'nswe'})])
+
         for i, c in enumerate(consultas):
-            values = (c['fecha_hora'], c['usuario'], c['codigo_barras'], c['resultado'] or "Sin resultado")
-            tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+            values = (
+                c["fecha_hora"], c["usuario"], c["codigo_barras"], c["resultado"] or "Sin resultado"
+            )
+            tag = "evenrow" if i % 2 == 0 else "oddrow"
             tree.insert("", "end", values=values, tags=(tag,))
-        tree.tag_configure('evenrow', background='#181818')
-        tree.tag_configure('oddrow', background='#222222')
-        # Scrollbar
+        
+        tree.tag_configure("evenrow", background=diseño["table"]["style"]["evenrow"])
+        tree.tag_configure("oddrow", background=diseño["table"]["style"]["oddrow"])
+
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
         tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
         # Botón cerrar
+        btn_cfg = diseño["boton_cerrar"]
         cerrar_btn = ct.CTkButton(
-            main_frame, text="Cerrar", command=top.destroy,
-            font=("Segoe UI", 14, "bold"), fg_color="#00FFAA", text_color="#000000",
-            width=200, height=40, corner_radius=12
+            main_frame,
+            text=btn_cfg["text"],
+            font=tuple(btn_cfg["font"]),
+            fg_color=btn_cfg["fg_color"],
+            text_color=btn_cfg["text_color"],
+            width=btn_cfg["width"],
+            height=btn_cfg["height"],
+            corner_radius=btn_cfg["corner_radius"],
+            command=top.destroy
         )
-        cerrar_btn.pack(pady=10)
+        cerrar_btn.pack(**btn_cfg["pack"])
 
 class LoginWindow:
     def __init__(self, master, usuario_model, logger, on_success):
@@ -304,60 +328,62 @@ class LoginWindow:
         self.crear_interfaz()
     
     def crear_interfaz(self):
-        """Crea la interfaz de login"""
+        """Crea la interfaz de login desde JSON"""
+        diseño = cargar_diseño("theme/claseLogin.json")
+
         self.frame = ct.CTkFrame(self.master)
-        self.frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
+        self.frame.pack(
+            fill=diseño["frame"]["fill"],
+            expand=diseño["frame"]["expand"],
+            padx=diseño["frame"]["padx"],
+            pady=diseño["frame"]["pady"]
+        )
+
         # Título
         self.label_title = ct.CTkLabel(
-            self.frame, 
-            text="Iniciar sesión", 
-            font=("Segoe UI", 18, "bold")
+            self.frame,
+            text=diseño["titulo"]["text"],
+            font=tuple(diseño["titulo"]["font"])
         )
-        self.label_title.pack(pady=(0, 16))
-        
-        # Variables
+        self.label_title.pack(pady=tuple(diseño["titulo"]["pady"]))
+
         self.user_var = StringVar()
         self.pass_var = StringVar()
-        
+
         # Usuario
-        self.label_user = ct.CTkLabel(self.frame, text="Usuario:")
-        self.label_user.pack(anchor="w")
+        self.label_user = ct.CTkLabel(self.frame, text=diseño["labels"][0]["text"])
+        self.label_user.pack(anchor=diseño["labels"][0]["anchor"])
+
         self.entry_user = ct.CTkEntry(self.frame, textvariable=self.user_var)
-        self.entry_user.pack(fill="x", pady=(0, 8))
-        
+        self.entry_user.pack(fill="x", pady=tuple(diseño["entry_pady"]))
+
         # Contraseña
-        self.label_pass = ct.CTkLabel(self.frame, text="Contraseña:")
-        self.label_pass.pack(anchor="w")
-        
-        # Frame horizontal para contraseña y botón
+        self.label_pass = ct.CTkLabel(self.frame, text=diseño["labels"][1]["text"])
+        self.label_pass.pack(anchor=diseño["labels"][1]["anchor"])
+
         self.pass_row = ct.CTkFrame(self.frame)
-        self.pass_row.pack(fill="x", pady=(0, 8))
-        
-        self.entry_pass = ct.CTkEntry(
-            self.pass_row, 
-            textvariable=self.pass_var, 
-            show="*"
-        )
+        self.pass_row.pack(fill="x", pady=tuple(diseño["entry_pady"]))
+
+        self.entry_pass = ct.CTkEntry(self.pass_row, textvariable=self.pass_var, show="*")
         self.entry_pass.pack(side="left", fill="x", expand=True)
-        
+
         self.login_button = ct.CTkButton(
-            self.pass_row, 
-            text="Entrar", 
-            command=self.try_login, 
-            width=100
+            self.pass_row,
+            text=diseño["login_button"]["text"],
+            width=diseño["login_button"]["width"],
+            command=self.try_login
         )
         self.login_button.pack(side="right", padx=(8, 0))
-        
-        # Label de error
+
+        # Error label
         self.error_label = ct.CTkLabel(
-            self.frame, 
-            text="", 
-            text_color="#FF3333", 
-            font=("Segoe UI", 11, "bold")
+            self.frame,
+            text=diseño["error_label"]["text"],
+            text_color=diseño["error_label"]["text_color"],
+            font=tuple(diseño["error_label"]["font"])
         )
-        self.error_label.pack(pady=(0, 8))
-        
+        self.error_label.pack(pady=tuple(diseño["error_label"]["pady"]))
+
         # Eventos
         self.entry_user.bind("<Return>", lambda e: self.entry_pass.focus_set())
         self.entry_pass.bind("<Return>", lambda e: self.try_login())
@@ -467,31 +493,29 @@ class MainWindow:
                 print(f"Error al crear la interfaz principal: {str(e)}")
     
     def crear_interfaz(self):
-        """Crea la interfaz principal"""
         try:
-            # Crear tabview
-            self.tabview = ct.CTkTabview(self.master, fg_color="#000000")
-            self.tabview.pack(fill="both", expand=True, padx=40, pady=20)
-            
-            # Interfaz específica para superadmin
+            diseño = cargar_diseño("theme/main_window.json")
+            tabview_conf = diseño["tabview"]
+
+            self.tabview = ct.CTkTabview(
+                self.master,
+                fg_color=tabview_conf["fg_color"]
+            )
+            self.tabview.pack(
+                fill="both",
+                expand=True,
+                padx=tabview_conf["padx"],
+                pady=tabview_conf["pady"]
+            )
+
             if self.rol == "superadmin":
                 self._crear_interfaz_superadmin()
-            else:
-                self._crear_interfaz_normal()
-            
-            # Establecer pestaña inicial
-            if self.rol == "superadmin":
                 self.tabview.set("Gestión de Usuarios")
             else:
+                self._crear_interfaz_normal()
                 self.tabview.set("Escáner")
         except Exception as e:
-            try:
-                if hasattr(self, 'logger') and self.logger:
-                    self.logger.error(f"Error creando interfaz: {str(e)}")
-                else:
-                    print(f"Error creando interfaz: {str(e)}")
-            except:
-                print(f"Error creando interfaz: {str(e)}")
+            self.logger.error(f"Error creando interfaz: {str(e)}")
             raise e
     
     def _crear_interfaz_superadmin(self):
@@ -531,21 +555,37 @@ class MainWindow:
             self._configurar_tab_configuracion(self.tabview.tab("Configuración"))
         
     def _configurar_tab_gestion_usuarios(self, parent):
-        """Configura la pestaña de gestión de usuarios para superadmin"""
-        main_frame = ct.CTkFrame(parent, fg_color="#000000")
-        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        diseño = cargar_diseño("theme/main_window.json")
+        gestion_conf = diseño["gestion_usuarios"]
+
+        main_frame_conf = gestion_conf["main_frame"]
+        main_frame = ct.CTkFrame(
+            parent,
+            fg_color=main_frame_conf["fg_color"]
+        )
+        main_frame.pack(
+            fill="both",
+            expand=True,
+            padx=main_frame_conf["padx"],
+            pady=main_frame_conf["pady"]
+        )
+
+        label_conf = gestion_conf["label"]
         ct.CTkLabel(
-            main_frame, 
-            text="Panel de Administración - Gestión de Usuarios", 
-            font=("Segoe UI", 18, "bold"), 
-            text_color="#00FFAA"
-        ).pack(pady=(0, 20))
-        # Layout horizontal: formulario a la izquierda, lista a la derecha
-        content_frame = ct.CTkFrame(main_frame, fg_color="#000000")
+            main_frame,
+            text=label_conf["text"],
+            font=tuple(label_conf["font"]),
+            text_color=label_conf["text_color"]
+        ).pack(pady=tuple(label_conf["pady"]))
+
+        content_frame_conf = gestion_conf["content_frame"]
+        content_frame = ct.CTkFrame(
+            main_frame,
+            fg_color=content_frame_conf["fg_color"]
+        )
         content_frame.pack(fill="both", expand=True)
-        # Formulario de usuario (izquierda)
+
         self._crear_formulario_usuario(content_frame, side="left")
-        # Lista de usuarios (derecha, mejor estilo)
         self._crear_lista_usuarios(content_frame, side="right")
     
     def _configurar_tab_base_datos(self, parent):
@@ -602,53 +642,88 @@ class MainWindow:
     def _configurar_tab_revision_capturas(self, parent):
         from tkinter import ttk, messagebox
         from models.captura import Captura
-        # Scrollable frame para la tabla y los botones
-        scroll_frame = ct.CTkScrollableFrame(parent, fg_color="#000000", width=900, height=500)
-        scroll_frame.pack(fill="both", expand=True, padx=20, pady=(20, 0))
+        
+        diseño = cargar_diseño("theme/revision_capturas.json")
+
+        # Frame scrollable principal
+        sf_conf = diseño["scroll_frame"]
+        scroll_frame = ct.CTkScrollableFrame(
+            parent,
+            fg_color=sf_conf["fg_color"],
+            width=sf_conf["width"],
+            height=sf_conf["height"]
+        )
+        scroll_frame.pack(**sf_conf["pack"])
+
+        # Título
+        title_conf = diseño["label_title"]
         ct.CTkLabel(
             scroll_frame,
-            text="Revisión de Capturas",
-            font=("Segoe UI", 18, "bold"),
-            text_color="#00FFAA"
-        ).pack(pady=(0, 20))
+            text=title_conf["text"],
+            font=tuple(title_conf["font"]),
+            text_color=title_conf["text_color"]
+        ).pack(**title_conf["pack"])
+
         captura_model = Captura(self.db_manager)
         capturas = captura_model.obtener_todas_capturas()
+        
         if not capturas:
+            empty_conf = diseño["label_empty"]
             ct.CTkLabel(
                 scroll_frame,
-                text="No hay capturas registradas.",
-                text_color="#00FFAA",
-                font=("Segoe UI", 14, "bold")
-            ).pack(pady=20)
+                text=empty_conf["text"],
+                font=tuple(empty_conf["font"]),
+                text_color=empty_conf["text_color"]
+            ).pack(**empty_conf["pack"])
             return
+        
         columns = list(capturas[0].keys())
+
+        # Configurar estilos ttk para Treeview
         style = ttk.Style()
         style.theme_use('default')
+        tv_style = diseño["treeview_style"]
         style.configure("Treeview",
-                        background="#000000",
-                        foreground="#00FFAA",
-                        rowheight=24,
-                        fieldbackground="#000000",
-                        font=("Segoe UI", 10))
+                        background=tv_style["background"],
+                        foreground=tv_style["foreground"],
+                        rowheight=tv_style["rowheight"],
+                        fieldbackground=tv_style["fieldbackground"],
+                        font=tuple(tv_style["font"]))
         style.configure("Treeview.Heading",
-                        background="#111111",
-                        foreground="#00FFAA",
-                        font=("Segoe UI", 11, "bold"))
-        style.map('Treeview', background=[('selected', '#222222')])
-        tree = ttk.Treeview(scroll_frame, columns=columns, show="headings", height=16, style="Treeview", selectmode="extended")
+                        background=tv_style["heading_background"],
+                        foreground=tv_style["heading_foreground"],
+                        font=tuple(tv_style["heading_font"]))
+        style.map('Treeview', background=[('selected', tv_style["selected_background"])])
+
+        tv_conf = diseño["treeview"]
+        tree = ttk.Treeview(
+            scroll_frame,
+            columns=columns,
+            show=tv_conf["show"],
+            height=tv_conf["height"],
+            style="Treeview",
+            selectmode=tv_conf["selectmode"]
+        )
         for col in columns:
             tree.heading(col, text=col)
             tree.column(col, width=120, anchor="center")
         for row in capturas:
             tree.insert("", "end", values=[row[col] for col in columns])
-        tree.pack(fill="both", expand=True, padx=10, pady=10)
-        ct.CTkLabel(scroll_frame, text="Usa Ctrl o Shift para seleccionar varias capturas.", text_color="#55DDFF").pack(pady=(0, 8))
-        btns_frame = ct.CTkFrame(scroll_frame, fg_color="#000000")
-        btns_frame.pack(pady=10)
+        tree.pack(**tv_conf["pack"])
+
+        instr_conf = diseño["label_select_instruction"]
+        ct.CTkLabel(
+            scroll_frame,
+            text=instr_conf["text"],
+            text_color=instr_conf["text_color"]
+        ).pack(**instr_conf["pack"])
+
+        btns_conf = diseño["buttons_frame"]
+        btns_frame = ct.CTkFrame(scroll_frame, fg_color=btns_conf["fg_color"])
+        btns_frame.pack(**btns_conf["pack"])
+
         def refrescar_codigos_items_tabla():
-            # Busca el tabview de la base de datos y refresca la tabla codigos_items
             try:
-                # Busca el frame principal de la base de datos
                 for widget in parent.master.winfo_children():
                     if isinstance(widget, ct.CTkTabview):
                         tabview = widget
@@ -657,6 +732,7 @@ class MainWindow:
                             self._mostrar_tabla_sql(codigos_tab, "codigos_items")
             except Exception as e:
                 print(f"Error refrescando codigos_items: {e}")
+
         def aceptar():
             seleccion = tree.selection()
             if not seleccion:
@@ -666,8 +742,12 @@ class MainWindow:
             resultado = captura_model.mover_capturas_a_historico(ids)
             for item in seleccion:
                 tree.delete(item)
-            messagebox.showinfo("Éxito", f"Capturas aceptadas y movidas a codigos_items. Procesadas: {resultado['procesados']}, Actualizadas: {resultado['actualizados']}")
-            refrescar_codigos_items_tabla()  # Refresca automáticamente la tabla codigos_items
+            messagebox.showinfo(
+                "Éxito", 
+                f"Capturas aceptadas y movidas a codigos_items. Procesadas: {resultado['procesados']}, Actualizadas: {resultado['actualizados']}"
+            )
+            refrescar_codigos_items_tabla()
+
         def denegar():
             seleccion = tree.selection()
             if not seleccion:
@@ -679,30 +759,34 @@ class MainWindow:
             for item in seleccion:
                 tree.delete(item)
             messagebox.showinfo("Éxito", "Capturas denegadas y eliminadas correctamente.")
+
+        aceptar_btn_conf = diseño["button_aceptar"]
         aceptar_btn = ct.CTkButton(
             btns_frame,
-            text="Aceptar Captura(s)",
+            text=aceptar_btn_conf["text"],
             command=aceptar,
-            fg_color="#00FFAA",
-            text_color="#000000",
-            font=("Segoe UI", 12, "bold"),
-            border_width=2,
-            border_color="#00FFAA",
-            corner_radius=10
+            fg_color=aceptar_btn_conf["fg_color"],
+            text_color=aceptar_btn_conf["text_color"],
+            font=tuple(aceptar_btn_conf["font"]),
+            border_width=aceptar_btn_conf["border_width"],
+            border_color=aceptar_btn_conf["border_color"],
+            corner_radius=aceptar_btn_conf["corner_radius"]
         )
-        aceptar_btn.pack(side="left", padx=10)
+        aceptar_btn.pack(**aceptar_btn_conf["pack"])
+
+        denegar_btn_conf = diseño["button_denegar"]
         denegar_btn = ct.CTkButton(
             btns_frame,
-            text="Denegar Captura(s)",
+            text=denegar_btn_conf["text"],
             command=denegar,
-            fg_color="#FF3333",
-            text_color="#FFFFFF",
-            font=("Segoe UI", 12, "bold"),
-            border_width=2,
-            border_color="#FF3333",
-            corner_radius=10
+            fg_color=denegar_btn_conf["fg_color"],
+            text_color=denegar_btn_conf["text_color"],
+            font=tuple(denegar_btn_conf["font"]),
+            border_width=denegar_btn_conf["border_width"],
+            border_color=denegar_btn_conf["border_color"],
+            corner_radius=denegar_btn_conf["corner_radius"]
         )
-        denegar_btn.pack(side="left", padx=10)
+        denegar_btn.pack(**denegar_btn_conf["pack"])
     
     def _mostrar_tabla_sql(self, parent, nombre_tabla):
         from tkinter import ttk
@@ -778,58 +862,54 @@ class MainWindow:
             search_var.trace_add('write', filtrar)
     
     def _configurar_tab_escaner(self, parent):
-        """Configura la pestaña del escáner"""
+        diseño = cargar_diseño("theme/tab_escaner.json")
+        
         # Frame principal
-        main_frame = ct.CTkFrame(parent, fg_color="#000000")
-        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        mf_conf = diseño["main_frame"]
+        main_frame = ct.CTkFrame(parent, fg_color=mf_conf["fg_color"])
+        main_frame.pack(**mf_conf["pack"])
         
         # Columna izquierda
-        left_col = ct.CTkFrame(main_frame, fg_color="#000000")
-        left_col.pack(side="left", fill="y", expand=True, padx=(0, 40))
+        lc_conf = diseño["left_col"]
+        left_col = ct.CTkFrame(main_frame, fg_color=lc_conf["fg_color"])
+        left_col.pack(**lc_conf["pack"])
         
-        # Logo y título
         self._crear_header(left_col)
         
-        # Entrada de código
-        self.codigo_var = StringVar()
+        ce_conf = diseño["codigo_entry"]
+        self.codigo_var = ct.StringVar()
         self.codigo_entry = ct.CTkEntry(
-            left_col, 
+            left_col,
             textvariable=self.codigo_var,
-            font=("Segoe UI", 15),
-            width=400,
-            height=36,
-            corner_radius=12,
-            border_width=2,
-            border_color="#00FFAA",
-            fg_color="#000000",
-            text_color="#00FFAA",
-            placeholder_text="Código de barras"
+            font=tuple(ce_conf["font"]),
+            width=ce_conf["width"],
+            height=ce_conf["height"],
+            corner_radius=ce_conf["corner_radius"],
+            border_width=ce_conf["border_width"],
+            border_color=ce_conf["border_color"],
+            fg_color=ce_conf["fg_color"],
+            text_color=ce_conf["text_color"],
+            placeholder_text=ce_conf["placeholder_text"]
         )
-        self.codigo_entry.pack(pady=(0, 18))
+        self.codigo_entry.pack(**ce_conf["pack"])
         self.codigo_entry.bind("<Return>", lambda e: self.buscar_codigo())
         
-        # Botones
         self._crear_botones_escaner(left_col)
-        
-        # Resultados
         self._crear_resultados_escaner(left_col)
         
-        # Columna derecha
-        right_col = ct.CTkFrame(main_frame, fg_color="#000000")
-        right_col.pack(side="right", fill="y", expand=True, padx=(40, 0))
+        rc_conf = diseño["right_col"]
+        right_col = ct.CTkFrame(main_frame, fg_color=rc_conf["fg_color"])
+        right_col.pack(**rc_conf["pack"])
         
-        # Estadísticas
         self._crear_estadisticas_escaner(right_col)
     
     def _crear_header(self, parent):
-        """Crea el header con logo y título"""
-        # Logo
         logo_path = os.path.join(os.path.dirname(__file__), 'resources', 'Logo (2).png')
         if os.path.exists(logo_path):
             try:
                 logo_img = ct.CTkImage(
-                    light_image=Image.open(logo_path), 
-                    dark_image=Image.open(logo_path), 
+                    light_image=Image.open(logo_path),
+                    dark_image=Image.open(logo_path),
                     size=(90, 90)
                 )
                 logo_label = ct.CTkLabel(parent, image=logo_img, text="", fg_color="#000000")
@@ -837,202 +917,204 @@ class MainWindow:
             except Exception as e:
                 self.logger.error(f"Error cargando logo: {str(e)}")
                 ct.CTkLabel(
-                    parent, 
-                    text="V&C", 
-                    font=("Segoe UI", 28, "bold"), 
-                    text_color="#00FFAA", 
+                    parent,
+                    text="V&C",
+                    font=("Segoe UI", 28, "bold"),
+                    text_color="#00FFAA",
                     fg_color="#000000"
                 ).pack(pady=(10, 10))
         else:
             ct.CTkLabel(
-                parent, 
-                text="V&C", 
-                font=("Segoe UI", 28, "bold"), 
-                text_color="#00FFAA", 
+                parent,
+                text="V&C",
+                font=("Segoe UI", 28, "bold"),
+                text_color="#00FFAA",
                 fg_color="#000000"
             ).pack(pady=(10, 10))
-        
-        # Título
+
         ct.CTkLabel(
-            parent, 
-            text="Escáner V&C", 
-            font=("Segoe UI", 22, "bold"), 
-            text_color="#00FFAA", 
+            parent,
+            text="Escáner V&C",
+            font=("Segoe UI", 22, "bold"),
+            text_color="#00FFAA",
             fg_color="#000000"
         ).pack(pady=(0, 8))
     
     def _crear_botones_escaner(self, parent):
-        """Crea los botones del escáner"""
+        diseño = cargar_diseño("theme/tab_escaner.json")
+        btn_conf = diseño["search_button"]
+        
         botones_frame = ct.CTkFrame(parent, fg_color="#000000")
         botones_frame.pack(pady=(0, 10))
-        # Botón buscar
+        
         self.search_button = ct.CTkButton(
             botones_frame,
-            text="Buscar",
-            font=("Segoe UI", 14, "bold"),
-            fg_color="#000000",
-            hover_color="#111111",
-            border_width=2,
-            border_color="#00FFAA",
-            text_color="#00FFAA",
-            corner_radius=12,
-            width=160,
-            height=36,
+            text=btn_conf["text"],
+            font=tuple(btn_conf["font"]),
+            fg_color=btn_conf["fg_color"],
+            hover_color=btn_conf["hover_color"],
+            border_width=btn_conf["border_width"],
+            border_color=btn_conf["border_color"],
+            text_color=btn_conf["text_color"],
+            corner_radius=btn_conf["corner_radius"],
+            width=btn_conf["width"],
+            height=btn_conf["height"],
             command=self.buscar_codigo
         )
-        self.search_button.pack(side="left", padx=(0, 8))
-        # Eliminar el botón limpiar BD para todos los usuarios
+        self.search_button.pack(**btn_conf["pack"])
     
     def _crear_resultados_escaner(self, parent):
-        """Crea los labels de resultados"""
+        diseño = cargar_diseño("theme/tab_escaner.json")
+        lbl_conf = diseño["labels_resultado"]
+        
         self.clave_valor = ct.CTkLabel(
-            parent, 
-            text="ITEM: ", 
-            font=("Segoe UI", 13, "bold"), 
-            text_color="#00FFAA", 
-            fg_color="#000000"
+            parent,
+            text="ITEM: ",
+            font=tuple(lbl_conf["font_clave"]),
+            text_color=lbl_conf["text_color_clave"],
+            fg_color=lbl_conf["fg_color"]
         )
-        self.clave_valor.pack(pady=(10, 0))
+        self.clave_valor.pack(pady=tuple(lbl_conf["padys"]["clave"]))
         
         self.resultado_valor = ct.CTkLabel(
-            parent, 
-            text="RESULTADO: ", 
-            font=("Segoe UI", 12), 
-            text_color="#00FFAA", 
-            fg_color="#000000", 
-            wraplength=500
+            parent,
+            text="RESULTADO: ",
+            font=tuple(lbl_conf["font_resultado"]),
+            text_color=lbl_conf["text_color_resultado"],
+            fg_color=lbl_conf["fg_color"],
+            wraplength=lbl_conf["wraplength"]
         )
-        self.resultado_valor.pack(pady=(0, 0))
-        # NOM oculta por el momento porque me da flojera revisar la logica y no tengo como hacer relacion
+        self.resultado_valor.pack(pady=tuple(lbl_conf["padys"]["resultado"]))
+        
         self.nom_valor = ct.CTkLabel(
-            parent, 
-            text="NOM: ", 
-            font=("Segoe UI", 12, "italic"), 
-            text_color="#000000", 
-            fg_color="#000000", 
-            wraplength=500
+            parent,
+            text="NOM: ",
+            font=tuple(lbl_conf["font_nom"]),
+            text_color=lbl_conf["text_color_nom"],
+            fg_color=lbl_conf["fg_color"],
+            wraplength=lbl_conf["wraplength"]
         )
-        self.nom_valor.pack(pady=(0, 10))
-    
+        self.nom_valor.pack(pady=tuple(lbl_conf["padys"]["nom"]))
+
     def _crear_estadisticas_escaner(self, parent):
-        """Crea las estadísticas del escáner"""
-        # Estadísticas
-        self.total_codigos_label = ct.CTkLabel(
-            parent, 
-            text="Total de códigos: 0", 
-            font=("Segoe UI", 11), 
-            text_color="#00FFAA", 
-            fg_color="#000000"
-        )
-        self.total_codigos_label.pack(pady=(0, 2))
-        
-        self.con_resultado_label = ct.CTkLabel(
-            parent, 
-            text="Items en total: 0", 
-            font=("Segoe UI", 11), 
-            text_color="#00FFAA", 
-            fg_color="#000000"
-        )
-        self.con_resultado_label.pack(pady=(0, 2))
-        
-        self.sin_resultado_label = ct.CTkLabel(
-            parent, 
-            text="Sin resultado: 0", 
-            font=("Segoe UI", 11), 
-            text_color="#00FFAA", 
-            fg_color="#000000"
-        )
-        self.sin_resultado_label.pack(pady=(0, 2))
-        
-        self.ultima_actualizacion_label = ct.CTkLabel(
-            parent, 
-            text="Última actualización: Nunca", 
-            font=("Segoe UI", 11), 
-            text_color="#00FFAA", 
-            fg_color="#000000"
-        )
-        self.ultima_actualizacion_label.pack(pady=(0, 8))
-        
-        # Botón cerrar sesión (logout)
+        diseño = cargar_diseño("theme/tab_escaner.json")
+        stats_conf = diseño["estadisticas_labels"]
+
+        labels_text = [
+            "Total de códigos: 0",
+            "Items en total: 0",
+            "Sin resultado: 0",
+            "Última actualización: Nunca"
+        ]
+
+        for i, text in enumerate(labels_text):
+            pady_val = stats_conf["pady_ultima"] if i == 3 else stats_conf["pady"]
+            ct.CTkLabel(
+                parent,
+                text=text,
+                font=tuple(stats_conf["font"]),
+                text_color=stats_conf["text_color"],
+                fg_color=stats_conf["fg_color"]
+            ).pack(pady=pady_val)
+
+        logout_conf = diseño["logout_button"]
         self.logout_button = ct.CTkButton(
             parent,
-            text="Cerrar Sesión",
-            font=("Segoe UI", 12, "bold"),
-            fg_color="#000000",
-            hover_color="#111111",
-            border_width=2,
-            border_color="#00FFAA",
-            text_color="#00FFAA",
-            corner_radius=12,
-            width=200,
-            height=32,
+            text=logout_conf["text"],
+            font=tuple(logout_conf["font"]),
+            fg_color=logout_conf["fg_color"],
+            hover_color=logout_conf["hover_color"],
+            border_width=logout_conf["border_width"],
+            border_color=logout_conf["border_color"],
+            text_color=logout_conf["text_color"],
+            corner_radius=logout_conf["corner_radius"],
+            width=logout_conf["width"],
+            height=logout_conf["height"],
             command=self.cerrar_sesion
         )
-        self.logout_button.pack(pady=(0, 8))
-    
-        # Botón historial del día
+        self.logout_button.pack(**logout_conf["pack"])
+
+        historial_conf = diseño["historial_button"]
         self.historial_button = ct.CTkButton(
             parent,
-            text="Ver Historial del Día",
-            font=("Segoe UI", 12, "bold"),
-            fg_color="#111111",
-            hover_color="#55DDFF",
-            border_width=2,
-            border_color="#55DDFF",
-            text_color="#55DDFF",
-            corner_radius=12,
-            width=200,
-            height=32,
+            text=historial_conf["text"],
+            font=tuple(historial_conf["font"]),
+            fg_color=historial_conf["fg_color"],
+            hover_color=historial_conf["hover_color"],
+            border_width=historial_conf["border_width"],
+            border_color=historial_conf["border_color"],
+            text_color=historial_conf["text_color"],
+            corner_radius=historial_conf["corner_radius"],
+            width=historial_conf["width"],
+            height=historial_conf["height"],
             command=self.mostrar_historial_cargas_y_consultas
         )
-        self.historial_button.pack(pady=(0, 18))
+        self.historial_button.pack(**historial_conf["pack"])
 
-        # Botón solo para admins: Exportar Reporte del Día
         if self.rol == "admin":
+            export_conf = diseño["exportar_reporte_button"]
             self.exportar_reporte_button = ct.CTkButton(
                 parent,
-                text="Exportar Reporte del Día",
-                font=("Segoe UI", 12, "bold"),
-                fg_color="#111111",
-                hover_color="#55DDFF",
-                border_width=2,
-                border_color="#55DDFF",
-                text_color="#55DDFF",
-                corner_radius=12,
-                width=200,
-                height=32,
+                text=export_conf["text"],
+                font=tuple(export_conf["font"]),
+                fg_color=export_conf["fg_color"],
+                hover_color=export_conf["hover_color"],
+                border_width=export_conf["border_width"],
+                border_color=export_conf["border_color"],
+                text_color=export_conf["text_color"],
+                corner_radius=export_conf["corner_radius"],
+                width=export_conf["width"],
+                height=export_conf["height"],
                 command=self.exportar_reporte_dia
             )
-            self.exportar_reporte_button.pack(pady=(0, 18))
+            self.exportar_reporte_button.pack(**export_conf["pack"])
     
     def exportar_reporte_dia(self):
         import tkinter as tk
-        from tkinter import filedialog
+        from tkinter import messagebox, filedialog
+
+        diseño = cargar_diseño("theme/exportar_reporte_dia.json")
+
         top = tk.Toplevel(self.master)
-        top.title("Seleccionar día para reporte")
-        top.geometry("400x220")
-        top.configure(bg="#000000")  # Fondo negro
+        top.title(diseño["window"]["title"])
+        top.geometry(diseño["window"]["geometry"])
+        top.configure(bg=diseño["window"]["bg"])
 
+        # Label principal
+        label_conf = diseño["label"]
         label = tk.Label(
-            top, text="Selecciona la fecha:",
-            font=("Segoe UI", 16, "bold"),
-            fg="#00FFAA", bg="#000000"
+            top,
+            text=label_conf["text"],
+            font=tuple(label_conf["font"]),
+            fg=label_conf["fg"],
+            bg=label_conf["bg"]
         )
-        label.pack(pady=20)
+        label.pack(**label_conf["pack"])
 
+        cal = None
         if DateEntry:
+            cal_conf = diseño["calendar"]
             cal = DateEntry(
-                top, width=18, background='#111111', foreground='#00FFAA',
-                borderwidth=2, date_pattern='yyyy-mm-dd',
-                font=("Segoe UI", 14), headersbackground="#222222", headersforeground="#00FFAA"
+                top,
+                width=cal_conf["width"],
+                background=cal_conf["background"],
+                foreground=cal_conf["foreground"],
+                borderwidth=cal_conf["borderwidth"],
+                date_pattern=cal_conf["date_pattern"],
+                font=tuple(cal_conf["font"]),
+                headersbackground=cal_conf["headersbackground"],
+                headersforeground=cal_conf["headersforeground"]
             )
-            cal.pack(pady=10)
+            cal.pack(**cal_conf["pack"])
         else:
+            lw_conf = diseño["label_warning"]
             tk.Label(
-                top, text="Instala tkcalendar para selector visual",
-                fg="red", bg="#000000", font=("Segoe UI", 12, "bold")
-            ).pack(pady=10)
-            cal = None
+                top,
+                text=lw_conf["text"],
+                fg=lw_conf["fg"],
+                bg=lw_conf["bg"],
+                font=tuple(lw_conf["font"])
+            ).pack(**lw_conf["pack"])
 
         def exportar():
             fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
@@ -1065,14 +1147,23 @@ class MainWindow:
             except Exception as e:
                 messagebox.showerror("Error", f"Error exportando reporte: {str(e)}")
 
+        btn_conf = diseño["button"]
         export_btn = tk.Button(
-            top, text="Exportar", command=exportar,
-            font=("Segoe UI", 14, "bold"),
-            bg="#00FFAA", fg="#000000", activebackground="#00FFAA", activeforeground="#000000",
-            relief="flat", borderwidth=0, width=16, height=2
+            top,
+            text=btn_conf["text"],
+            font=tuple(btn_conf["font"]),
+            bg=btn_conf["bg"],
+            fg=btn_conf["fg"],
+            activebackground=btn_conf["activebackground"],
+            activeforeground=btn_conf["activeforeground"],
+            relief=btn_conf["relief"],
+            borderwidth=btn_conf["borderwidth"],
+            width=btn_conf["width"],
+            height=btn_conf["height"],
+            command=exportar
         )
-        export_btn.pack(pady=20)
-    
+        export_btn.pack(**btn_conf["pack"])
+   
     def buscar_codigo(self):
         codigo = self.codigo_var.get().strip()
         es_valido, mensaje = Validators.validar_codigo_barras(codigo)
@@ -1201,115 +1292,133 @@ class MainWindow:
             messagebox.showerror("Error", f"Error al actualizar índice: {str(e)}")
     
     def _configurar_tab_captura(self, parent):
-        # Scrollable frame principal con mejor configuración
-        main_frame = ct.CTkScrollableFrame(parent, fg_color="#000000", width=800, height=600)
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
-        
+        diseño = cargar_diseño("theme/tab_captura.json")
+
+        main_frame_conf = diseño["main_frame"]
+        main_frame = ct.CTkScrollableFrame(parent, fg_color=main_frame_conf["fg_color"],
+                                        width=main_frame_conf["width"], height=main_frame_conf["height"])
+        main_frame.pack(fill="both", expand=True, padx=main_frame_conf["padx"], pady=main_frame_conf["pady"])
+
         # Título
+        label_conf = diseño["labels"]["titulo"]
         ct.CTkLabel(
-            main_frame, 
-            text="Captura de Cumplimientos", 
-            font=("Segoe UI", 18, "bold"), 
-            text_color="#00FFAA"
-        ).pack(pady=(0, 20))
-        
-        # Botón para subir capturas pendientes (solo admin y captura) ANTES de los campos
+            main_frame,
+            text=label_conf["text"],
+            font=tuple(label_conf["font"]),
+            text_color=label_conf["text_color"]
+        ).pack(pady=tuple(label_conf["pady"]))
+
+        # Botón subir capturas pendientes
         if self.rol in ["admin", "captura"]:
+            btn_conf = diseño["buttons"]["subir_pendientes"]
             self.subir_pendientes_btn = ct.CTkButton(
                 main_frame,
-                text="Subir capturas pendientes",
+                text=btn_conf["text"],
                 command=self.subir_capturas_offline,
-                font=("Segoe UI", 12, "bold"),
-                fg_color="#00FFAA",
-                text_color="#000000",
-                border_width=2,
-                border_color="#00FFAA",
-                corner_radius=10
+                font=tuple(btn_conf["font"]),
+                fg_color=btn_conf["fg_color"],
+                text_color=btn_conf["text_color"],
+                border_width=btn_conf["border_width"],
+                border_color=btn_conf["border_color"],
+                corner_radius=btn_conf["corner_radius"]
             )
-            self.subir_pendientes_btn.pack(pady=(0, 10))
+            self.subir_pendientes_btn.pack(pady=tuple(btn_conf["pady"]))
             self._actualizar_estado_pendientes()
-        
+
         # Variables
         self.codigo_captura_var = StringVar()
         self.item_captura_var = StringVar()
         self.motivo_captura_var = StringVar(value="Instrucciones de cuidado")
         self.cumple_captura_var = StringVar(value="NO CUMPLE")
-        
-        # Frame para campos de entrada
-        campos_frame = ct.CTkFrame(main_frame, fg_color="#000000")
-        campos_frame.pack(fill="x", pady=(0, 20))
-        
-        # Código de barras
+
+        frame_conf = diseño["frame"]
+        campos_frame = ct.CTkFrame(main_frame, fg_color=frame_conf["fg_color"])
+        campos_frame.pack(fill="x", pady=tuple(frame_conf["pady_campos"]))
+
+        # Código de barras label y entry
+        label_cb_conf = diseño["labels"]["codigo_barras"]
         ct.CTkLabel(
-            campos_frame, 
-            text="Código de barras:", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 13, "bold")
-        ).pack(anchor="w", padx=10, pady=(10, 0))
-        
+            campos_frame,
+            text=label_cb_conf["text"],
+            font=tuple(label_cb_conf["font"]),
+            text_color=label_cb_conf["text_color"]
+        ).pack(anchor=label_cb_conf["anchor"], padx=label_cb_conf["padx"], pady=tuple(label_cb_conf["pady"]))
+
+        entry_conf = diseño["entries"]
         self.codigo_captura_entry = ct.CTkEntry(
-            campos_frame, 
+            campos_frame,
             textvariable=self.codigo_captura_var,
-            font=("Segoe UI", 13),
-            width=400,
-            height=36,
-            corner_radius=12,
-            border_width=2,
-            border_color="#00FFAA",
-            fg_color="#000000",
-            text_color="#00FFAA"
+            font=tuple(entry_conf["font"]),
+            width=entry_conf["width"],
+            height=entry_conf["height"],
+            corner_radius=entry_conf["corner_radius"],
+            border_width=entry_conf["border_width"],
+            border_color=entry_conf["border_color"],
+            fg_color=entry_conf["fg_color"],
+            text_color=entry_conf["text_color"]
         )
         self.codigo_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
-        
-        # Evento para buscar automáticamente el item cuando se
         self.codigo_captura_entry.bind("<Return>", lambda e: self._buscar_item_automatico())
-        
-        # Item
+
+        # Item label y entry
+        label_item_conf = diseño["labels"]["item"]
         ct.CTkLabel(
-            campos_frame, 
-            text="Item:", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 13, "bold")
-        ).pack(anchor="w", padx=10, pady=(10, 0))
-        
+            campos_frame,
+            text=label_item_conf["text"],
+            font=tuple(label_item_conf["font"]),
+            text_color=label_item_conf["text_color"]
+        ).pack(anchor=label_item_conf["anchor"], padx=label_item_conf["padx"], pady=tuple(label_item_conf["pady"]))
+
         self.item_captura_entry = ct.CTkEntry(
-            campos_frame, 
+            campos_frame,
             textvariable=self.item_captura_var,
-            font=("Segoe UI", 13),
-            width=400,
-            height=36,
-            corner_radius=12,
-            border_width=2,
-            border_color="#00FFAA",
-            fg_color="#000000",
-            text_color="#00FFAA"
+            font=tuple(entry_conf["font"]),
+            width=entry_conf["width"],
+            height=entry_conf["height"],
+            corner_radius=entry_conf["corner_radius"],
+            border_width=entry_conf["border_width"],
+            border_color=entry_conf["border_color"],
+            fg_color=entry_conf["fg_color"],
+            text_color=entry_conf["text_color"]
         )
         self.item_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
-        
-        # Cumple/No cumple SIEMPRE visible
+
+        # ¿Cumple? label y OptionMenu
+        label_cumple_conf = diseño["labels"]["cumple"]
         ct.CTkLabel(
-            campos_frame, 
-            text="¿Cumple?", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 13, "bold")
-        ).pack(anchor="w", padx=10, pady=(10, 0))
+            campos_frame,
+            text=label_cumple_conf["text"],
+            font=tuple(label_cumple_conf["font"]),
+            text_color=label_cumple_conf["text_color"]
+        ).pack(anchor=label_cumple_conf["anchor"], padx=label_cumple_conf["padx"], pady=tuple(label_cumple_conf["pady"]))
+
+        optionmenu_conf = diseño["optionmenu"]
         self.cumple_captura_menu = ct.CTkOptionMenu(
             campos_frame,
             variable=self.cumple_captura_var,
             values=["CUMPLE", "NO CUMPLE"],
-            fg_color="#000000",
-            text_color="#00FFAA",
-            font=("Segoe UI", 13),
-            width=400,
-            height=36
+            fg_color=optionmenu_conf["fg_color"],
+            text_color=optionmenu_conf["text_color"],
+            font=tuple(optionmenu_conf["font"]),
+            width=optionmenu_conf["width"],
+            height=optionmenu_conf["height"]
         )
         self.cumple_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
 
-        # Frame para motivo y botón guardar
-        motivo_guardar_frame = ct.CTkFrame(campos_frame, fg_color="#000000")
-        motivo_guardar_frame.pack(fill="x", pady=(0, 10))
+        # Frame motivo y botón guardar
+        motivo_guardar_frame = ct.CTkFrame(campos_frame, fg_color=frame_conf["fg_color"])
+        motivo_guardar_frame.pack(fill="x", pady=tuple(frame_conf["pady_motivo_guardar"]))
 
-        # Motivo siempre visible, pero desactivado si Cumple es 'CUMPLE'
+        # Motivo label y OptionMenu
+        motivo_label_conf = diseño["labels"]["motivo"]
+        self.motivo_label = ct.CTkLabel(
+            motivo_guardar_frame,
+            text=motivo_label_conf["text"],
+            font=tuple(motivo_label_conf["font"]),
+            text_color=motivo_label_conf["text_color"]
+        )
+        self.motivo_label.pack(anchor=motivo_label_conf["anchor"], padx=motivo_label_conf["padx"], pady=tuple(motivo_label_conf["pady"]))
+
         motivo_options = [
             "Instrucciones de cuidado",
             "Insumos",
@@ -1318,25 +1427,20 @@ class MainWindow:
             "Importador",
             "Marca"
         ]
-        self.motivo_label = ct.CTkLabel(
-            motivo_guardar_frame, 
-            text="Motivo:", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 13, "bold")
-        )
-        self.motivo_label.pack(anchor="w", padx=10, pady=(10, 0))
-        self.motivo_captura_var = StringVar(value=motivo_options[0])
+        self.motivo_captura_var.set(motivo_options[0])
         self.motivo_captura_menu = ct.CTkOptionMenu(
             motivo_guardar_frame,
             variable=self.motivo_captura_var,
             values=motivo_options,
-            fg_color="#000000",
-            text_color="#00FFAA",
-            font=("Segoe UI", 13),
-            width=400,
-            height=36
+            fg_color=optionmenu_conf["fg_color"],
+            text_color=optionmenu_conf["text_color"],
+            font=tuple(optionmenu_conf["font"]),
+            width=optionmenu_conf["width"],
+            height=optionmenu_conf["height"]
         )
         self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
+
+        # Lógica para habilitar/deshabilitar motivo según cumple
         def on_cumple_change(*args):
             if self.cumple_captura_var.get() == "NO CUMPLE":
                 self.motivo_captura_menu.configure(state="normal", text_color="#00FFAA")
@@ -1344,23 +1448,25 @@ class MainWindow:
             else:
                 self.motivo_captura_menu.configure(state="disabled", text_color="#888888")
                 self.motivo_label.configure(text_color="#888888")
+
         self.cumple_captura_var.trace_add('write', on_cumple_change)
         on_cumple_change()
 
-        # Botón guardar SIEMPRE al final del frame
+        # Botón guardar
+        guardar_btn_conf = diseño["buttons"]["guardar"]
         self.guardar_btn = ct.CTkButton(
             motivo_guardar_frame,
-            text="Guardar",
+            text=guardar_btn_conf["text"],
             command=self.guardar_captura_offline,
-            font=("Segoe UI", 12, "bold"),
-            fg_color="#00FFAA",
-            text_color="#000000",
-            border_width=2,
-            border_color="#00FFAA",
-            corner_radius=10
+            font=tuple(guardar_btn_conf["font"]),
+            fg_color=guardar_btn_conf["fg_color"],
+            text_color=guardar_btn_conf["text_color"],
+            border_width=guardar_btn_conf["border_width"],
+            border_color=guardar_btn_conf["border_color"],
+            corner_radius=guardar_btn_conf["corner_radius"]
         )
-        self.guardar_btn.pack(pady=(10, 0))
-    
+        self.guardar_btn.pack(pady=tuple(guardar_btn_conf["pady"]))
+
     def guardar_captura_offline(self):
         """Guarda la captura offline obteniendo los valores de los campos"""
         codigo = self.codigo_captura_var.get().strip()
@@ -1488,89 +1594,123 @@ class MainWindow:
                 )
 
     def mostrar_historial_cargas_y_consultas(self):
-        import tkinter as tk
-        from tkinter import ttk
-        import customtkinter as ct
+        diseño = cargar_diseño("theme/historial_dia.json")
+
         # Crear ventana toplevel
         top = ct.CTkToplevel(self.master)
-        top.title("Historial del día")
-        top.geometry("700x500")
-        top.configure(fg_color="#000000")
+        top.title(diseño["window"]["title"])
+        top.geometry(diseño["window"]["geometry"])
+        top.configure(fg_color=diseño["window"]["fg_color"])
         top.lift()
         top.attributes('-topmost', True)
         top.focus_force()
 
-        # Frame principal
-        main_frame = ct.CTkFrame(top, fg_color="#000000")
-        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        main_frame_conf = diseño["main_frame"]
+        main_frame = ct.CTkFrame(top, fg_color=main_frame_conf["fg_color"])
+        main_frame.pack(fill=main_frame_conf["fill"], expand=main_frame_conf["expand"],
+                        padx=main_frame_conf["padx"], pady=main_frame_conf["pady"])
 
-        # Sección de cargas CLP
+        # Sección cargas CLP
+        cargas_label_conf = diseño["labels"]["cargas_titulo"]
         ct.CTkLabel(
-            main_frame, text="Cargas CLP del día:", font=("Segoe UI", 16, "bold"), text_color="#00FFAA", fg_color="#000000"
-        ).pack(anchor="w", pady=(0, 5))
+            main_frame,
+            text=cargas_label_conf["text"],
+            font=tuple(cargas_label_conf["font"]),
+            text_color=cargas_label_conf["text_color"],
+            fg_color=cargas_label_conf["fg_color"]
+        ).pack(anchor=cargas_label_conf["anchor"], pady=tuple(cargas_label_conf["pady"]))
+
         try:
-            query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE fecha_carga::date = CURRENT_DATE ORDER BY fecha_carga DESC"
+            query_cargas = ("SELECT archivo, usuario, fecha_carga, codigos_agregados "
+                            "FROM clp_cargas WHERE fecha_carga::date = CURRENT_DATE "
+                            "ORDER BY fecha_carga DESC")
             cargas = self.db_manager.execute_query(query_cargas)
-        except Exception as e:
+        except Exception:
             cargas = []
+
         cargas_text = "Sin cargas hoy."
         if cargas:
             cargas_text = "\n".join([
-                f"{c['fecha_carga']}: {c['archivo']} (Usuario: {c['usuario']}, Códigos: {c['codigos_agregados']})" for c in cargas
+                f"{c['fecha_carga']}: {c['archivo']} (Usuario: {c['usuario']}, Códigos: {c['codigos_agregados']})"
+                for c in cargas
             ])
-        cargas_label = ct.CTkTextbox(main_frame, width=650, height=60, fg_color="#111111", text_color="#00FFAA", font=("Segoe UI", 12))
+
+        cargas_textbox_conf = diseño["textboxes"]["cargas"]
+        cargas_label = ct.CTkTextbox(
+            main_frame,
+            width=cargas_textbox_conf["width"],
+            height=cargas_textbox_conf["height"],
+            fg_color=cargas_textbox_conf["fg_color"],
+            text_color=cargas_textbox_conf["text_color"],
+            font=tuple(cargas_textbox_conf["font"])
+        )
         cargas_label.insert("1.0", cargas_text)
         cargas_label.configure(state="disabled")
-        cargas_label.pack(pady=(0, 15))
+        cargas_label.pack(pady=tuple(cargas_textbox_conf["pady"]))
 
-        # Sección de consultas recientes
+        # Sección consultas recientes
+        consultas_label_conf = diseño["labels"]["consultas_titulo"]
         ct.CTkLabel(
-            main_frame, text="Consultas recientes:", font=("Segoe UI", 16, "bold"), text_color="#00FFAA", fg_color="#000000"
-        ).pack(anchor="w", pady=(0, 5))
+            main_frame,
+            text=consultas_label_conf["text"],
+            font=tuple(consultas_label_conf["font"]),
+            text_color=consultas_label_conf["text_color"],
+            fg_color=consultas_label_conf["fg_color"]
+        ).pack(anchor=consultas_label_conf["anchor"], pady=tuple(consultas_label_conf["pady"]))
+
         try:
-            query_consultas = "SELECT fecha_hora, usuario, codigo_barras, resultado FROM consultas WHERE fecha_hora::date = CURRENT_DATE ORDER BY fecha_hora DESC LIMIT 50"
+            query_consultas = ("SELECT fecha_hora, usuario, codigo_barras, resultado "
+                            "FROM consultas WHERE fecha_hora::date = CURRENT_DATE "
+                            "ORDER BY fecha_hora DESC LIMIT 50")
             consultas = self.db_manager.execute_query(query_consultas)
-        except Exception as e:
+        except Exception:
             consultas = []
-        # Tabla de consultas
-        table_frame = ct.CTkFrame(main_frame, fg_color="#111111")
-        table_frame.pack(fill="both", expand=True, pady=(0, 10))
-        columns = ("Fecha/Hora", "Usuario", "Código de Barras", "Resultado")
-        tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
-        for col in columns:
+
+        table_frame_conf = diseño["table_frame"]
+        table_frame = ct.CTkFrame(main_frame, fg_color=table_frame_conf["fg_color"])
+        table_frame.pack(fill=table_frame_conf["fill"], expand=table_frame_conf["expand"], pady=tuple(table_frame_conf["pady"]))
+
+        treeview_conf = diseño["treeview"]
+        columns = treeview_conf["columns"]
+        tree = ttk.Treeview(table_frame, columns=columns, show=treeview_conf["show"], height=treeview_conf["height"])
+
+        # Configurar columnas
+        for i, col in enumerate(columns):
             tree.heading(col, text=col)
-        # Estilo ttk para fondo oscuro y tipo Excel
+            tree.column(col, width=treeview_conf["column_widths"][i], anchor=treeview_conf["column_anchors"][i])
+
+        # Estilo ttk
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
-                        background="#111111",
-                        foreground="#00FFAA",
-                        rowheight=24,
-                        fieldbackground="#111111",
-                        font=("Segoe UI", 11),
-                        bordercolor="#222222",
-                        borderwidth=1)
+                        background=treeview_conf["style"]["background"],
+                        foreground=treeview_conf["style"]["foreground"],
+                        rowheight=treeview_conf["style"]["rowheight"],
+                        fieldbackground=treeview_conf["style"]["fieldbackground"],
+                        font=tuple(treeview_conf["style"]["font"]),
+                        bordercolor=treeview_conf["style"]["bordercolor"],
+                        borderwidth=treeview_conf["style"]["borderwidth"])
         style.configure("Treeview.Heading",
-                        background="#00FFAA",
-                        foreground="#000000",
-                        font=("Segoe UI", 13, "bold"),
-                        relief="flat")
-        style.map('Treeview', background=[('selected', '#222222')])
-        style.layout("Treeview", [
-            ('Treeview.treearea', {'sticky': 'nswe'})
-        ])
-        # Ajustar ancho de columnas
-        tree.column("Fecha/Hora", width=160, anchor="center")
-        tree.column("Usuario", width=100, anchor="center")
-        tree.column("Código de Barras", width=220, anchor="center")
-        tree.column("Resultado", width=120, anchor="center")
+                        background=treeview_conf["heading_style"]["background"],
+                        foreground=treeview_conf["heading_style"]["foreground"],
+                        font=tuple(treeview_conf["heading_style"]["font"]),
+                        relief=treeview_conf["heading_style"]["relief"])
+        style.map('Treeview', background=[('selected', treeview_conf["tags"]["selected_background"])])
+        style.layout("Treeview", [('Treeview.treearea', {'sticky': 'nswe'})])
+
         # Insertar datos con rayado
         for i, c in enumerate(consultas):
-            values = (c['fecha_hora'], c['usuario'], c['codigo_barras'], c['resultado'] or "Sin resultado")
+            values = (
+                c['fecha_hora'],
+                c['usuario'],
+                c['codigo_barras'],
+                c['resultado'] or "Sin resultado"
+            )
             tag = 'evenrow' if i % 2 == 0 else 'oddrow'
             tree.insert("", "end", values=values, tags=(tag,))
-        tree.tag_configure('evenrow', background='#181818')
-        tree.tag_configure('oddrow', background='#222222')
+        tree.tag_configure('evenrow', background=treeview_conf["tags"]["evenrow"])
+        tree.tag_configure('oddrow', background=treeview_conf["tags"]["oddrow"])
+
         # Scrollbar
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
@@ -1578,45 +1718,57 @@ class MainWindow:
         scrollbar.pack(side="right", fill="y")
 
         # Botón cerrar
+        btn_conf = diseño["button"]["cerrar"]
         cerrar_btn = ct.CTkButton(
-            main_frame, text="Cerrar", command=top.destroy,
-            font=("Segoe UI", 14, "bold"), fg_color="#00FFAA", text_color="#000000",
-            width=200, height=40, corner_radius=12
+            main_frame,
+            text=btn_conf["text"],
+            command=top.destroy,
+            font=tuple(btn_conf["font"]),
+            fg_color=btn_conf["fg_color"],
+            text_color=btn_conf["text_color"],
+            width=btn_conf["width"],
+            height=btn_conf["height"],
+            corner_radius=btn_conf["corner_radius"]
         )
-        cerrar_btn.pack(pady=10)
+        cerrar_btn.pack(pady=btn_conf["pady"])
 
     def _configurar_tab_configuracion(self, parent):
-        main_frame = ct.CTkFrame(parent, fg_color="#000000")
-        main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+        diseño = cargar_diseño("theme/tab_configuracion.json")
 
+        main_frame_conf = diseño["main_frame"]
+        main_frame = ct.CTkFrame(parent, fg_color=main_frame_conf["fg_color"])
+        main_frame.pack(**main_frame_conf["pack"])
+
+        title_conf = diseño["title_label"]
         ct.CTkLabel(
             main_frame,
-            text="Configuración de Archivos CLP",
-            font=("Segoe UI", 18, "bold"),
-            text_color="#00FFAA"
-        ).pack(pady=(0, 20))
+            text=title_conf["text"],
+            font=tuple(title_conf["font"]),
+            text_color=title_conf["text_color"]
+        ).pack(**title_conf["pack"])
 
-        # Variable para mostrar archivos seleccionados
-        self.rutas_clp_var = StringVar(value="No hay archivos seleccionados")
+        archivos_frame_conf = diseño["archivos_frame"]
+        archivos_frame = ct.CTkFrame(main_frame, fg_color=archivos_frame_conf["fg_color"])
+        archivos_frame.pack(**archivos_frame_conf["pack"])
 
-        archivos_frame = ct.CTkFrame(main_frame, fg_color="#000000")
-        archivos_frame.pack(fill="x", pady=(0, 20))
-
+        archivos_label_conf = diseño["archivos_label"]
         ct.CTkLabel(
             archivos_frame,
-            text="Archivos CLP seleccionados:",
-            text_color="#00FFAA",
-            font=("Segoe UI", 14, "bold")
-        ).pack(anchor="w", padx=20, pady=(10, 0))
+            text=archivos_label_conf["text"],
+            font=tuple(archivos_label_conf["font"]),
+            text_color=archivos_label_conf["text_color"]
+        ).pack(**archivos_label_conf["pack"])
 
+        self.rutas_clp_var = StringVar(value="No hay archivos seleccionados")
+        rutas_clp_label_conf = diseño["rutas_clp_label"]
         self.rutas_clp_label = ct.CTkLabel(
             archivos_frame,
             textvariable=self.rutas_clp_var,
-            text_color="#55DDFF",
-            wraplength=600,
-            fg_color="#000000"
+            text_color=rutas_clp_label_conf["text_color"],
+            wraplength=rutas_clp_label_conf["wraplength"],
+            fg_color=rutas_clp_label_conf["fg_color"]
         )
-        self.rutas_clp_label.pack(anchor="w", padx=20, pady=(0, 5))
+        self.rutas_clp_label.pack(**rutas_clp_label_conf["pack"])
 
         def seleccionar_archivos():
             rutas = filedialog.askopenfilenames(
@@ -1630,20 +1782,21 @@ class MainWindow:
                 self.rutas_clp_var.set("No hay archivos seleccionados")
                 self.rutas_clp = []
 
+        btn_sel_conf = diseño["botones"]["seleccionar_archivos"]
         ct.CTkButton(
             archivos_frame,
-            text="Seleccionar Archivos CLP",
+            text=btn_sel_conf["text"],
             command=seleccionar_archivos,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#000000",
-            hover_color="#111111",
-            border_width=2,
-            border_color="#00FFAA",
-            text_color="#00FFAA",
-            corner_radius=12,
-            width=260,
-            height=36
-        ).pack(pady=5, padx=20, anchor="w")
+            font=tuple(btn_sel_conf["font"]),
+            fg_color=btn_sel_conf["fg_color"],
+            hover_color=btn_sel_conf["hover_color"],
+            border_width=btn_sel_conf["border_width"],
+            border_color=btn_sel_conf["border_color"],
+            text_color=btn_sel_conf["text_color"],
+            corner_radius=btn_sel_conf["corner_radius"],
+            width=btn_sel_conf["width"],
+            height=btn_sel_conf["height"]
+        ).pack(**btn_sel_conf["pack"])
 
         def cargar_archivos_clp():
             if not hasattr(self, "rutas_clp") or not self.rutas_clp:
@@ -1652,201 +1805,231 @@ class MainWindow:
             resultado = self.codigo_model.cargar_varios_clp(self.rutas_clp, self.usuario)
             if not isinstance(resultado, dict):
                 resultado = {'procesados': 0, 'nuevos_items': 0, 'nuevos_codigos': 0, 'clp_registros': []}
-            mensaje = f"Carga completada.\nNuevos items: {resultado.get('nuevos_items', 0)}\nNuevos códigos: {resultado.get('nuevos_codigos', 0)}\nTotal procesados: {resultado.get('procesados', 0)}"
+            mensaje = (f"Carga completada.\n"
+                    f"Nuevos items: {resultado.get('nuevos_items', 0)}\n"
+                    f"Nuevos códigos: {resultado.get('nuevos_codigos', 0)}\n"
+                    f"Total procesados: {resultado.get('procesados', 0)}")
             messagebox.showinfo("Éxito", mensaje)
             self.rutas_clp_var.set("No hay archivos seleccionados")
             self.rutas_clp = []
             self.cargar_estadisticas()
 
+        btn_cargar_conf = diseño["botones"]["cargar_archivos_clp"]
         ct.CTkButton(
             archivos_frame,
-            text="Cargar Archivos CLP",
+            text=btn_cargar_conf["text"],
             command=cargar_archivos_clp,
-            font=("Segoe UI", 13, "bold"),
-            fg_color="#00FFAA",
-            text_color="#000000",
-            border_width=2,
-            border_color="#00FFAA",
-            corner_radius=12,
-            width=260,
-            height=36
-        ).pack(pady=5, padx=20, anchor="w")
+            font=tuple(btn_cargar_conf["font"]),
+            fg_color=btn_cargar_conf["fg_color"],
+            text_color=btn_cargar_conf["text_color"],
+            border_width=btn_cargar_conf["border_width"],
+            border_color=btn_cargar_conf["border_color"],
+            corner_radius=btn_cargar_conf["corner_radius"],
+            width=btn_cargar_conf["width"],
+            height=btn_cargar_conf["height"]
+        ).pack(**btn_cargar_conf["pack"])
 
     def _crear_formulario_usuario(self, parent, side="left"):
-        """Crea el formulario de usuario para superadmin"""
-        form_frame = ct.CTkFrame(parent, fg_color="#111111")
-        form_frame.pack(side=side, fill="both", expand=True, padx=(0, 10))
-        
-        # Título del formulario
+        diseño = cargar_diseño_formulario("theme/formulario_usuario.json")
+
+        form_conf = diseño["form_frame"]
+        form_frame = ct.CTkFrame(parent, fg_color=form_conf["fg_color"])
+        form_frame.pack(side=side, fill=form_conf["pack"]["fill"], expand=form_conf["pack"]["expand"], padx=form_conf["pack"]["padx"])
+
+        title = diseño["title_label"]
         ct.CTkLabel(
             form_frame,
-            text="Crear/Editar Usuario",
-            font=("Segoe UI", 16, "bold"),
-            text_color="#00FFAA"
-        ).pack(pady=(20, 20))
-        
+            text=title["text"],
+            font=tuple(title["font"]),
+            text_color=title["text_color"]
+        ).pack(pady=title["pack"]["pady"])
+
         # Variables
         self.usuario_form_var = StringVar()
         self.password_form_var = StringVar()
         self.rol_form_var = StringVar(value="usuario")
         self.activo_form_var = StringVar(value="activo")
-        
+
         # Usuario
-        ct.CTkLabel(form_frame, text="Usuario:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
+        campo_usuario = diseño["campos"]["usuario"]
+        ct.CTkLabel(
+            form_frame,
+            text=campo_usuario["label"]["text"],
+            text_color=campo_usuario["label"]["text_color"]
+        ).pack(**campo_usuario["label"]["pack"])
         self.usuario_form_entry = ct.CTkEntry(
             form_frame,
             textvariable=self.usuario_form_var,
-            width=300,
-            height=32
+            width=campo_usuario["entry"]["width"],
+            height=campo_usuario["entry"]["height"]
         )
-        self.usuario_form_entry.pack(padx=20, pady=(0, 15))
-        
+        self.usuario_form_entry.pack(**campo_usuario["entry"]["pack"])
+
         # Contraseña
-        ct.CTkLabel(form_frame, text="Contraseña:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
+        campo_password = diseño["campos"]["password"]
+        ct.CTkLabel(
+            form_frame,
+            text=campo_password["label"]["text"],
+            text_color=campo_password["label"]["text_color"]
+        ).pack(**campo_password["label"]["pack"])
         self.password_form_entry = ct.CTkEntry(
             form_frame,
             textvariable=self.password_form_var,
-            show="*",
-            width=300,
-            height=32
+            show=campo_password["entry"]["show"],
+            width=campo_password["entry"]["width"],
+            height=campo_password["entry"]["height"]
         )
-        self.password_form_entry.pack(padx=20, pady=(0, 15))
-        
+        self.password_form_entry.pack(**campo_password["entry"]["pack"])
+
         # Rol
-        ct.CTkLabel(form_frame, text="Rol:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
+        campo_rol = diseño["campos"]["rol"]
+        ct.CTkLabel(
+            form_frame,
+            text=campo_rol["label"]["text"],
+            text_color=campo_rol["label"]["text_color"]
+        ).pack(**campo_rol["label"]["pack"])
         self.rol_form_menu = ct.CTkOptionMenu(
             form_frame,
             variable=self.rol_form_var,
-            values=["usuario", "captura", "admin", "superadmin"],
-            width=300,
-            height=32
+            values=campo_rol["optionmenu"]["values"],
+            width=campo_rol["optionmenu"]["width"],
+            height=campo_rol["optionmenu"]["height"]
         )
-        self.rol_form_menu.pack(padx=20, pady=(0, 15))
-        
+        self.rol_form_menu.pack(**campo_rol["optionmenu"]["pack"])
+
         # Estado
-        ct.CTkLabel(form_frame, text="Estado:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
+        campo_activo = diseño["campos"]["activo"]
+        ct.CTkLabel(
+            form_frame,
+            text=campo_activo["label"]["text"],
+            text_color=campo_activo["label"]["text_color"]
+        ).pack(**campo_activo["label"]["pack"])
         self.activo_form_menu = ct.CTkOptionMenu(
             form_frame,
             variable=self.activo_form_var,
-            values=["activo", "inactivo"],
-            width=300,
-            height=32
+            values=campo_activo["optionmenu"]["values"],
+            width=campo_activo["optionmenu"]["width"],
+            height=campo_activo["optionmenu"]["height"]
         )
-        self.activo_form_menu.pack(padx=20, pady=(0, 20))
-        
+        self.activo_form_menu.pack(**campo_activo["optionmenu"]["pack"])
+
         # Botones
-        buttons_frame = ct.CTkFrame(form_frame, fg_color="#111111")
-        buttons_frame.pack(pady=(0, 20))
-        
+        botones_frame_conf = diseño["buttons_frame"]
+        buttons_frame = ct.CTkFrame(form_frame, fg_color=botones_frame_conf["fg_color"])
+        buttons_frame.pack(**botones_frame_conf["pack"])
+
+        btn_crear = diseño["buttons"]["crear_usuario"]
         ct.CTkButton(
             buttons_frame,
-            text="Crear Usuario",
+            text=btn_crear["text"],
             command=self.crear_usuario,
-            fg_color="#00FFAA",
-            text_color="#000000",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
-        
+            fg_color=btn_crear["fg_color"],
+            text_color=btn_crear["text_color"],
+            width=btn_crear["width"],
+            height=btn_crear["height"]
+        ).pack(**btn_crear["pack"])
+
+        btn_limpiar = diseño["buttons"]["limpiar"]
         ct.CTkButton(
             buttons_frame,
-            text="Limpiar",
+            text=btn_limpiar["text"],
             command=self.limpiar_formulario_usuario,
-            fg_color="#FF3333",
-            text_color="#FFFFFF",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
+            fg_color=btn_limpiar["fg_color"],
+            text_color=btn_limpiar["text_color"],
+            width=btn_limpiar["width"],
+            height=btn_limpiar["height"]
+        ).pack(**btn_limpiar["pack"])
     
     def _crear_lista_usuarios(self, parent, side="right"):
-        """Crea la lista de usuarios para superadmin"""
-        list_frame = ct.CTkFrame(parent, fg_color="#111111")
-        list_frame.pack(side=side, fill="both", expand=True, padx=(10, 0))
-        
-        # Título de la lista
+        diseño = cargar_diseño_lista_usuarios("theme/lista_usuarios.json")
+
+        lf_conf = diseño["list_frame"]
+        list_frame = ct.CTkFrame(parent, fg_color=lf_conf["fg_color"])
+        list_frame.pack(side=side, fill=lf_conf["pack"]["fill"], expand=lf_conf["pack"]["expand"], padx=lf_conf["pack"]["padx"])
+
+        title = diseño["title_label"]
         ct.CTkLabel(
             list_frame,
-            text="Usuarios Registrados",
-            font=("Segoe UI", 16, "bold"),
-            text_color="#00FFAA"
-        ).pack(pady=(20, 20))
-        
-        # Frame para la tabla
-        table_frame = ct.CTkFrame(list_frame, fg_color="#000000")
-        table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        
-        # Crear tabla con ttk.Treeview
-        from tkinter import ttk
-        
-        columns = ("Usuario", "Rol", "Estado", "Último Acceso")
-        self.usuarios_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15)
-        
-        # Configurar columnas
+            text=title["text"],
+            font=tuple(title["font"]),
+            text_color=title["text_color"]
+        ).pack(pady=title["pack"]["pady"])
+
+        # Frame para tabla
+        tf_conf = diseño["table_frame"]
+        table_frame = ct.CTkFrame(list_frame, fg_color=tf_conf["fg_color"])
+        table_frame.pack(fill=tf_conf["pack"]["fill"], expand=tf_conf["pack"]["expand"], padx=tf_conf["pack"]["padx"], pady=tf_conf["pack"]["pady"])
+
+        # Crear Treeview
+        tree_conf = diseño["treeview"]
+        columns = tree_conf["columns"]
+        self.usuarios_tree = ttk.Treeview(table_frame, columns=columns, show=tree_conf["show"], height=tree_conf["height"])
+
         for col in columns:
             self.usuarios_tree.heading(col, text=col)
-            self.usuarios_tree.column(col, width=120, anchor="center")
-        
-        # Estilo de la tabla
+            cfg = tree_conf["columns_config"][col]
+            self.usuarios_tree.column(col, width=cfg["width"], anchor=cfg["anchor"])
+
+        # Configurar estilo ttk
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
-                        background="#000000",
-                        foreground="#00FFAA",
-                        rowheight=25,
-                        fieldbackground="#000000")
+                        background=tree_conf["style"]["background"],
+                        foreground=tree_conf["style"]["foreground"],
+                        rowheight=tree_conf["style"]["rowheight"],
+                        fieldbackground=tree_conf["style"]["fieldbackground"])
         style.configure("Treeview.Heading",
-                        background="#111111",
-                        foreground="#00FFAA",
-                        font=("Segoe UI", 10, "bold"))
-        style.map('Treeview', background=[('selected', '#222222')])
-        
+                        background=tree_conf["style"]["heading_background"],
+                        foreground=tree_conf["style"]["heading_foreground"],
+                        font=tuple(tree_conf["style"]["heading_font"]))
+        style.map('Treeview', background=[('selected', tree_conf["style"]["selected_background"])])
+
         # Scrollbar
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.usuarios_tree.yview)
         self.usuarios_tree.configure(yscrollcommand=scrollbar.set)
-        
-        # Empaquetar tabla y scrollbar
         self.usuarios_tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-        
-        # Cargar usuarios
+
         self.cargar_usuarios()
-        
-        # Evento de selección
+
         self.usuarios_tree.bind("<<TreeviewSelect>>", self.on_usuario_select)
-        
-        # Botones de acción
-        action_frame = ct.CTkFrame(list_frame, fg_color="#111111")
-        action_frame.pack(pady=(0, 20))
-        
+
+        # Botones
+        af_conf = diseño["action_frame"]
+        action_frame = ct.CTkFrame(list_frame, fg_color=af_conf["fg_color"])
+        action_frame.pack(pady=af_conf["pack"]["pady"])
+
+        btns = diseño["buttons"]
+
         ct.CTkButton(
             action_frame,
-            text="Eliminar Usuario",
+            text=btns["eliminar_usuario"]["text"],
             command=self.eliminar_usuario,
-            fg_color="#FF3333",
-            text_color="#FFFFFF",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
-        
+            fg_color=btns["eliminar_usuario"]["fg_color"],
+            text_color=btns["eliminar_usuario"]["text_color"],
+            width=btns["eliminar_usuario"]["width"],
+            height=btns["eliminar_usuario"]["height"]
+        ).pack(**btns["eliminar_usuario"]["pack"])
+
         ct.CTkButton(
             action_frame,
-            text="Cambiar Estado",
+            text=btns["cambiar_estado"]["text"],
             command=self.cambiar_estado_usuario,
-            fg_color="#FFAA00",
-            text_color="#000000",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
-        
+            fg_color=btns["cambiar_estado"]["fg_color"],
+            text_color=btns["cambiar_estado"]["text_color"],
+            width=btns["cambiar_estado"]["width"],
+            height=btns["cambiar_estado"]["height"]
+        ).pack(**btns["cambiar_estado"]["pack"])
+
         ct.CTkButton(
             action_frame,
-            text="Refrescar",
+            text=btns["refrescar"]["text"],
             command=self.cargar_usuarios,
-            fg_color="#00AAFF",
-            text_color="#FFFFFF",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
+            fg_color=btns["refrescar"]["fg_color"],
+            text_color=btns["refrescar"]["text_color"],
+            width=btns["refrescar"]["width"],
+            height=btns["refrescar"]["height"]
+        ).pack(**btns["refrescar"]["pack"])
     
     def cargar_usuarios(self):
         """Carga los usuarios en la tabla"""

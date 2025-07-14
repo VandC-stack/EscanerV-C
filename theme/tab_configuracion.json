@@ -1,0 +1,81 @@
+{
+  "main_frame": {
+    "fg_color": "#000000",
+    "pack": {
+      "fill": "both",
+      "expand": true,
+      "padx": 40,
+      "pady": 40
+    }
+  },
+  "title_label": {
+    "text": "Configuración de Archivos CLP",
+    "font": ["Segoe UI", 18, "bold"],
+    "text_color": "#00FFAA",
+    "pack": {
+      "pady": [0, 20]
+    }
+  },
+  "archivos_frame": {
+    "fg_color": "#000000",
+    "pack": {
+      "fill": "x",
+      "pady": [0, 20]
+    }
+  },
+  "archivos_label": {
+    "text": "Archivos CLP seleccionados:",
+    "font": ["Segoe UI", 14, "bold"],
+    "text_color": "#00FFAA",
+    "pack": {
+      "anchor": "w",
+      "padx": 20,
+      "pady": [10, 0]
+    }
+  },
+  "rutas_clp_label": {
+    "text_color": "#55DDFF",
+    "wraplength": 600,
+    "fg_color": "#000000",
+    "pack": {
+      "anchor": "w",
+      "padx": 20,
+      "pady": [0, 5]
+    }
+  },
+  "botones": {
+    "seleccionar_archivos": {
+      "text": "Seleccionar Archivos CLP",
+      "font": ["Segoe UI", 13, "bold"],
+      "fg_color": "#000000",
+      "hover_color": "#111111",
+      "border_width": 2,
+      "border_color": "#00FFAA",
+      "text_color": "#00FFAA",
+      "corner_radius": 12,
+      "width": 260,
+      "height": 36,
+      "pack": {
+        "pady": 5,
+        "padx": 20,
+        "anchor": "w"
+      }
+    },
+    "cargar_archivos_clp": {
+      "text": "Cargar Archivos CLP",
+      "font": ["Segoe UI", 13, "bold"],
+      "fg_color": "#00FFAA",
+      "text_color": "#000000",
+      "border_width": 2,
+      "border_color": "#00FFAA",
+      "corner_radius": 12,
+      "width": 260,
+      "height": 36,
+      "pack": {
+        "pady": 5,
+        "padx": 20,
+        "anchor": "w"
+      }
+    }
+  }
+}

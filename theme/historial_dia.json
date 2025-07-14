@@ -1,0 +1,87 @@
+{
+  "window": {
+    "title": "Historial del día",
+    "geometry": "700x500",
+    "fg_color": "#000000"
+  },
+  "main_frame": {
+    "fg_color": "#000000",
+    "padx": 20,
+    "pady": 20,
+    "fill": "both",
+    "expand": true
+  },
+  "labels": {
+    "cargas_titulo": {
+      "text": "Cargas CLP del día:",
+      "font": ["Segoe UI", 16, "bold"],
+      "text_color": "#00FFAA",
+      "fg_color": "#000000",
+      "anchor": "w",
+      "pady": [0, 5]
+    },
+    "consultas_titulo": {
+      "text": "Consultas recientes:",
+      "font": ["Segoe UI", 16, "bold"],
+      "text_color": "#00FFAA",
+      "fg_color": "#000000",
+      "anchor": "w",
+      "pady": [0, 5]
+    }
+  },
+  "textboxes": {
+    "cargas": {
+      "width": 650,
+      "height": 60,
+      "fg_color": "#111111",
+      "text_color": "#00FFAA",
+      "font": ["Segoe UI", 12],
+      "pady": [0, 15]
+    }
+  },
+  "table_frame": {
+    "fg_color": "#111111",
+    "fill": "both",
+    "expand": true,
+    "pady": [0, 10]
+  },
+  "treeview": {
+    "columns": ["Fecha/Hora", "Usuario", "Código de Barras", "Resultado"],
+    "show": "headings",
+    "height": 12,
+    "column_widths": [160, 100, 220, 120],
+    "column_anchors": ["center", "center", "center", "center"],
+    "style": {
+      "background": "#111111",
+      "foreground": "#00FFAA",
+      "rowheight": 24,
+      "fieldbackground": "#111111",
+      "font": ["Segoe UI", 11],
+      "bordercolor": "#222222",
+      "borderwidth": 1
+    },
+    "heading_style": {
+      "background": "#00FFAA",
+      "foreground": "#000000",
+      "font": ["Segoe UI", 13, "bold"],
+      "relief": "flat"
+    },
+    "tags": {
+      "evenrow": "#181818",
+      "oddrow": "#222222",
+      "selected_background": "#222222"
+    }
+  },
+  "button": {
+    "cerrar": {
+      "text": "Cerrar",
+      "font": ["Segoe UI", 14, "bold"],
+      "fg_color": "#00FFAA",
+      "text_color": "#000000",
+      "width": 200,
+      "height": 40,
+      "corner_radius": 12,
+      "pady": 10
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "frame": {
+    "fill": "both",
+    "expand": true,
+    "padx": 20,
+    "pady": 20
+  },
+  "titulo": {
+    "text": "Iniciar sesión",
+    "font": ["Segoe UI", 18, "bold"],
+    "pady": [0, 16]
+  },
+  "labels": [
+    {
+      "text": "Usuario:",
+      "anchor": "w"
+    },
+    {
+      "text": "Contraseña:",
+      "anchor": "w"
+    }
+  ],
+  "entry_pady": [0, 8],
+  "error_label": {
+    "text": "",
+    "text_color": "#FF3333",
+    "font": ["Segoe UI", 11, "bold"],
+    "pady": [0, 8]
+  },
+  "login_button": {
+    "text": "Entrar",
+    "width": 100
+  }
+}
