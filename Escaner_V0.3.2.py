@@ -13,29 +13,11 @@ import re
 import math
 import hashlib
 import json
+import subprocess
 try:
     from tkcalendar import DateEntry 
 except ImportError:
     DateEntry = None
-
-# Nada que ver aqui, sigue bajando
-try:
-    from doom_port import run_doom_complete, run_doom_real, show_doom_real_easter_egg
-    DOOM_EASTER_EGG_AVAILABLE = True
-    DOOM_COMPLETE_AVAILABLE = True
-    DOOM_REAL_AVAILABLE = True
-    show_doom_easter_egg = None  # No hay versión simplificada aquí
-except ImportError:
-    try:
-        from easter_egg_doom import show_doom_easter_egg
-        DOOM_EASTER_EGG_AVAILABLE = True
-        DOOM_COMPLETE_AVAILABLE = False
-        DOOM_REAL_AVAILABLE = False
-    except ImportError:
-        DOOM_EASTER_EGG_AVAILABLE = False
-        DOOM_COMPLETE_AVAILABLE = False
-        DOOM_REAL_AVAILABLE = False
-        show_doom_easter_egg = None
 
 # Configuración de la aplicación
 ct.set_appearance_mode("dark")
@@ -62,14 +44,6 @@ from utils.validators import Validators
 
 print("Default encoding:", sys.getdefaultencoding())
 print("Filesystem encoding:", sys.getfilesystemencoding())
-
-# Definir do_easter_egg global para el easter egg de DOOM
-do_easter_egg = None
-try:
-    from doom_port import run_doom_complete, run_doom_real, show_doom_real_easter_egg
-    do_easter_egg = show_doom_real_easter_egg
-except ImportError:
-    do_easter_egg = None
 
 class EscanerApp:
     def __init__(self):
@@ -475,17 +449,10 @@ class MainWindow:
         self.usuario_model = usuario_model
         self.db_manager = db_manager
         
-        # Variables para el easter egg
-        self.easter_egg_sequence = []
-        self.easter_egg_target = ['Control_L', 'Alt_L', 'd']
-        
         try:
             self.crear_interfaz()
             if self.rol != "superadmin":
                 self.cargar_estadisticas()
-            
-            # Configurar detección de teclas para easter egg
-            self.configurar_easter_egg()
         except Exception as e:
             try:
                 if hasattr(self, 'logger') and self.logger:
@@ -1110,14 +1077,12 @@ class MainWindow:
     def buscar_codigo(self):
         import os
         codigo = self.codigo_var.get().strip()
-        # Activar easter egg si el usuario escribe 'DOOM' (insensible a mayúsculas)
-        if codigo.lower() == 'doom':
-            wad_local = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Doom1.WAD')
-            wad_descargas = r"C:\\Users\\bost2\\Downloads\\Doom1.WAD"
-            wad_path = wad_local if os.path.exists(wad_local) else wad_descargas
-            if do_easter_egg is not None and os.path.exists(wad_path):
-                import threading
-                threading.Thread(target=lambda: do_easter_egg(wad_path), daemon=True).start()
+        # Easter egg: si el usuario escribe 'tetris', lanza el minijuego
+        if codigo.lower() == 'tetris':
+            try:
+                subprocess.Popen(['python', os.path.join('tetris', 'tetris.py')])
+            except Exception as e:
+                messagebox.showerror("Error", f"No se pudo iniciar Tetris: {e}")
             self.codigo_var.set("")
             self.codigo_entry.focus_set()
             return
