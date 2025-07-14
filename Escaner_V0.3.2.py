@@ -563,15 +563,16 @@ class MainWindow:
             # Tabs para cada tabla
             tablas_tabview = ct.CTkTabview(main_frame, fg_color="#111111")
             tablas_tabview.pack(fill="both", expand=True)
-            # Usuarios
+            # Usuarios (tabla de solo lectura para visualización)
             tablas_tabview.add("Usuarios")
-            self._crear_lista_usuarios(tablas_tabview.tab("Usuarios"), side="top")
+            self._crear_tabla_usuarios_solo_lectura(tablas_tabview.tab("Usuarios"))
             # Ítems (nueva pestaña)
             tablas_tabview.add("Ítems")
             self._crear_tabla_items(tablas_tabview.tab("Ítems"))
-            # Capturas (solo mostrar historial, no revisión)
-            tablas_tabview.add("Capturas")
-            self._configurar_tab_captura(tablas_tabview.tab("Capturas"))
+            # Capturas (solo si NO es superadmin)
+            if self.rol != "superadmin":
+                tablas_tabview.add("Capturas")
+                self._configurar_tab_captura(tablas_tabview.tab("Capturas"))
         except Exception as e:
             try:
                 if hasattr(self, 'logger') and self.logger:
@@ -581,9 +582,61 @@ class MainWindow:
             except:
                 print(f"Error configurando tab base de datos: {str(e)}")
             raise e
+    
+    def _crear_tabla_usuarios_solo_lectura(self, parent):
+        """Crea una tabla de usuarios de solo lectura para la pestaña Base de Datos"""
+        from tkinter import ttk
+        
+        ct.CTkLabel(
+            parent,
+            text="Vista de Usuarios (Solo Lectura)",
+            font=("Segoe UI", 16, "bold"),
+            text_color="#00FFAA"
+        ).pack(pady=(20, 20))
+        
+        table_frame = ct.CTkFrame(parent, fg_color="#000000")
+        table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        
+        columns = ("Usuario", "Rol", "Estado", "Último Acceso")
+        self.usuarios_tree_db = ttk.Treeview(table_frame, columns=columns, show="headings", height=15, selectmode="none")
+        
+        for col in columns:
+            self.usuarios_tree_db.heading(col, text=col)
+            self.usuarios_tree_db.column(col, width=120, anchor="center")
+        
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("Treeview",
+                        background="#000000",
+                        foreground="#00FFAA",
+                        rowheight=25,
+                        fieldbackground="#000000")
+        style.configure("Treeview.Heading",
+                        background="#111111",
+                        foreground="#00FFAA",
+                        font=("Segoe UI", 10, "bold"))
+        
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.usuarios_tree_db.yview)
+        self.usuarios_tree_db.configure(yscrollcommand=scrollbar.set)
+        self.usuarios_tree_db.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Cargar datos
+        self._cargar_usuarios_en_tabla(self.usuarios_tree_db)
+        
+        # Botón refrescar
+        ct.CTkButton(
+            parent,
+            text="Refrescar",
+            command=lambda: self._cargar_usuarios_en_tabla(self.usuarios_tree_db),
+            fg_color="#00AAFF",
+            text_color="#FFFFFF",
+            width=120,
+            height=32
+        ).pack(pady=10)
 
     def _crear_tabla_items(self, parent):
-        from tkinter import ttk, simpledialog
+        from tkinter import ttk
         # Limpiar widgets previos
         for widget in parent.winfo_children():
             widget.destroy()
@@ -593,14 +646,22 @@ class MainWindow:
             font=("Segoe UI", 16, "bold"),
             text_color="#00FFAA"
         ).pack(pady=(20, 20))
+        # Buscador
+        search_frame = ct.CTkFrame(parent, fg_color="#000000")
+        search_frame.pack(fill="x", padx=20, pady=(0, 10))
+        self.items_search_var = ct.StringVar()
+        ct.CTkLabel(search_frame, text="Buscar por item o resultado:", text_color="#00FFAA").pack(side="left", padx=(0, 8))
+        search_entry = ct.CTkEntry(search_frame, textvariable=self.items_search_var, width=200)
+        search_entry.pack(side="left")
+        search_entry.bind("<Return>", lambda e: self.cargar_items())
         # Frame para la tabla
         table_frame = ct.CTkFrame(parent, fg_color="#000000")
         table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        columns = ("Código de Barras", "Item", "Resultado", "Fecha Actualización")
-        self.items_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15)
+        columns = ("ID", "Item", "Resultado", "Fecha Actualización")
+        self.items_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15, selectmode="browse")
         for col in columns:
             self.items_tree.heading(col, text=col)
-            self.items_tree.column(col, width=140, anchor="center")
+            self.items_tree.column(col, width=150, anchor="center")
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -618,20 +679,12 @@ class MainWindow:
         self.items_tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         self.cargar_items()
-        # Evento de selección
-        self.items_tree.bind("<Double-1>", self.on_item_edit)
-        # Botones de acción
+        # Mensaje si no hay ítems
+        self.items_empty_label = ct.CTkLabel(parent, text="", text_color="#FF3333", font=("Segoe UI", 13, "bold"))
+        self.items_empty_label.pack(pady=(0, 10))
+        # Botón refrescar
         action_frame = ct.CTkFrame(parent, fg_color="#111111")
         action_frame.pack(pady=(0, 20))
-        ct.CTkButton(
-            action_frame,
-            text="Eliminar Ítem",
-            command=self.eliminar_item,
-            fg_color="#FF3333",
-            text_color="#FFFFFF",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
         ct.CTkButton(
             action_frame,
             text="Refrescar",
@@ -646,65 +699,332 @@ class MainWindow:
         try:
             for item in self.items_tree.get_children():
                 self.items_tree.delete(item)
-            items = self.codigo_model.buscar_por_patron("")
-            for it in items:
-                self.items_tree.insert("", "end", values=(
-                    it.get('codigo_barras', ''),
-                    it.get('item', ''),
-                    it.get('resultado', ''),
-                    it.get('fecha_actualizacion', '')
-                ))
+            filtro = self.items_search_var.get().strip()
+            if filtro:
+                query = "SELECT * FROM items WHERE item ILIKE %s OR resultado ILIKE %s ORDER BY id ASC"
+                like = f"%{filtro}%"
+                items = self.db_manager.execute_query(query, (like, like))
+            else:
+                items = self.db_manager.execute_query("SELECT * FROM items ORDER BY id ASC")
+            if items:
+                for it in items:
+                    self.items_tree.insert("", "end", values=(
+                        it.get('id', ''),
+                        it.get('item', ''),
+                        it.get('resultado', ''),
+                        it.get('fecha_actualizacion', '')
+                    ))
+            # No mostrar mensajes de error en la interfaz
         except Exception as e:
             self.logger.error(f"Error cargando ítems: {str(e)}")
+            # No mostrar mensajes de error en la interfaz
 
-    def on_item_edit(self, event):
-        item_id = self.items_tree.focus()
-        if not item_id:
-            return
-        values = self.items_tree.item(item_id)['values']
-        if not values:
-            return
-        codigo_barras, item, resultado, fecha = values
-        nuevo_resultado = simpledialog.askstring(
-            "Editar Resultado",
-            f"Editar resultado para el ítem {item} (código: {codigo_barras}):",
-            initialvalue=resultado
+    def _crear_lista_usuarios(self, parent, side="right"):
+        """Crea la tabla principal de usuarios con botones de acción"""
+        list_frame = ct.CTkFrame(parent, fg_color="#111111")
+        list_frame.pack(side=side, fill="both", expand=True, padx=(10, 0))
+        ct.CTkLabel(
+            list_frame,
+            text="Usuarios Registrados",
+            font=("Segoe UI", 16, "bold"),
+            text_color="#00FFAA"
+        ).pack(pady=(20, 20))
+        table_frame = ct.CTkFrame(list_frame, fg_color="#000000")
+        table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        from tkinter import ttk
+        columns = ("Usuario", "Rol", "Estado", "Último Acceso")
+        self.usuarios_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15, selectmode="browse")
+        for col in columns:
+            self.usuarios_tree.heading(col, text=col)
+            self.usuarios_tree.column(col, width=120, anchor="center")
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("Treeview",
+                        background="#000000",
+                        foreground="#00FFAA",
+                        rowheight=25,
+                        fieldbackground="#000000")
+        style.configure("Treeview.Heading",
+                        background="#111111",
+                        foreground="#00FFAA",
+                        font=("Segoe UI", 10, "bold"))
+        style.map('Treeview', background=[('selected', '#222222')])
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.usuarios_tree.yview)
+        self.usuarios_tree.configure(yscrollcommand=scrollbar.set)
+        self.usuarios_tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Cargar usuarios en la tabla principal
+        self._cargar_usuarios_en_tabla(self.usuarios_tree)
+        
+        # Configurar eventos para la tabla principal
+        self.usuario_seleccionado = None
+        self.usuarios_tree.bind("<<TreeviewSelect>>", self.on_usuario_select)
+        self.usuarios_tree.bind("<ButtonRelease-1>", self.on_usuario_select)
+        
+        # Botones de acción para la tabla principal
+        action_frame = ct.CTkFrame(list_frame, fg_color="#111111")
+        action_frame.pack(pady=(0, 20))
+        ct.CTkButton(
+            action_frame,
+            text="Eliminar Usuario",
+            command=self.eliminar_usuario,
+            fg_color="#FF3333",
+            text_color="#FFFFFF",
+            width=120,
+            height=32
+        ).pack(side="left", padx=5)
+        ct.CTkButton(
+            action_frame,
+            text="Cambiar Estado",
+            command=self.cambiar_estado_usuario,
+            fg_color="#FFAA00",
+            text_color="#000000",
+            width=120,
+            height=32
+        ).pack(side="left", padx=5)
+        ct.CTkButton(
+            action_frame,
+            text="Refrescar",
+            command=self.cargar_usuarios,
+            fg_color="#00AAFF",
+            text_color="#FFFFFF",
+            width=120,
+            height=32
+        ).pack(side="left", padx=5)
+    
+    def _cargar_usuarios_en_tabla(self, tree):
+        """Carga los usuarios en una tabla específica"""
+        try:
+            # Limpiar tabla
+            for item in tree.get_children():
+                tree.delete(item)
+            
+            # Obtener usuarios de la base de datos
+            usuarios = self.usuario_model.obtener_todos_usuarios()
+            
+            # Insertar en la tabla
+            for usuario in usuarios:
+                tree.insert("", "end", values=(
+                    usuario.get('usuario', ''),
+                    usuario.get('rol', ''),
+                    usuario.get('estado', ''),
+                    usuario.get('ultimo_acceso', '')
+                ))
+                
+        except Exception as e:
+            self.logger.error(f"Error cargando usuarios: {str(e)}")
+    
+    def _crear_formulario_usuario(self, parent, side="left"):
+        form_frame = ct.CTkFrame(parent, fg_color="#111111")
+        form_frame.pack(side=side, fill="both", expand=True, padx=(0, 10))
+        ct.CTkLabel(
+            form_frame,
+            text="Crear/Editar Usuario",
+            font=("Segoe UI", 16, "bold"),
+            text_color="#00FFAA"
+        ).pack(pady=(20, 20))
+        self.usuario_form_var = StringVar()
+        self.password_form_var = StringVar()
+        self.rol_form_var = StringVar(value="usuario")
+        self.activo_form_var = StringVar(value="activo")
+        ct.CTkLabel(form_frame, text="Usuario:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
+        self.usuario_form_entry = ct.CTkEntry(
+            form_frame,
+            textvariable=self.usuario_form_var,
+            width=300,
+            height=32
         )
-        if nuevo_resultado is not None:
-            ok = self.codigo_model.actualizar_resultado(codigo_barras, nuevo_resultado)
-            if ok:
-                self.cargar_items()
-                messagebox.showinfo("Éxito", "Resultado actualizado correctamente.")
-            else:
-                messagebox.showerror("Error", "No se pudo actualizar el resultado.")
+        self.usuario_form_entry.pack(padx=20, pady=(0, 15))
+        ct.CTkLabel(form_frame, text="Contraseña:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
+        self.password_form_entry = ct.CTkEntry(
+            form_frame,
+            textvariable=self.password_form_var,
+            show="*",
+            width=300,
+            height=32
+        )
+        self.password_form_entry.pack(padx=20, pady=(0, 15))
+        ct.CTkLabel(form_frame, text="Rol:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
+        self.rol_form_menu = ct.CTkOptionMenu(
+            form_frame,
+            variable=self.rol_form_var,
+            values=["usuario", "captura", "admin"],
+            width=300,
+            height=32
+        )
+        self.rol_form_menu.pack(padx=20, pady=(0, 15))
+        ct.CTkLabel(form_frame, text="Estado:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
+        self.activo_form_menu = ct.CTkOptionMenu(
+            form_frame,
+            variable=self.activo_form_var,
+            values=["activo", "inactivo"],
+            width=300,
+            height=32
+        )
+        self.activo_form_menu.pack(padx=20, pady=(0, 20))
+        buttons_frame = ct.CTkFrame(form_frame, fg_color="#111111")
+        buttons_frame.pack(pady=(0, 20))
+        ct.CTkButton(
+            buttons_frame,
+            text="Crear Usuario",
+            command=self.crear_usuario,
+            fg_color="#00FFAA",
+            text_color="#000000",
+            width=120,
+            height=32
+        ).pack(side="left", padx=5)
+        ct.CTkButton(
+            buttons_frame,
+            text="Limpiar",
+            command=self.limpiar_formulario_usuario,
+            fg_color="#FF3333",
+            text_color="#FFFFFF",
+            width=120,
+            height=32
+        ).pack(side="left", padx=5)
 
-    def eliminar_item(self):
-        from tkinter import simpledialog
-        selection = self.items_tree.selection()
+    def crear_usuario(self):
+        """Crea un nuevo usuario"""
+        try:
+            usuario = self.usuario_form_var.get().strip()
+            password = self.password_form_var.get().strip()
+            rol = self.rol_form_var.get()
+            activo = self.activo_form_var.get()
+            # Validar campos
+            if not usuario or not password:
+                messagebox.showwarning("Campos vacíos", "Usuario y contraseña son obligatorios")
+                return
+            # Proteger superadmin
+            if usuario == "superadmin" or rol == "superadmin":
+                messagebox.showwarning("Prohibido", "No puedes crear ni modificar el usuario superadmin desde la interfaz.")
+                return
+            # Validar formato
+            es_valido_usuario, _ = Validators.validar_usuario(usuario)
+            es_valido_pass, _ = Validators.validar_contraseña(password)
+            if not es_valido_usuario or not es_valido_pass:
+                messagebox.showwarning("Formato inválido", "Formato de usuario o contraseña inválido")
+                return
+            # Crear usuario
+            resultado = self.usuario_model.crear_usuario(usuario, password, rol, activo)
+            if resultado:
+                messagebox.showinfo("Éxito", "Usuario creado correctamente")
+                self.limpiar_formulario_usuario()
+                self.cargar_usuarios()
+                # Seleccionar automáticamente el nuevo usuario después de un breve delay
+                self.master.after(200, lambda: self._seleccionar_usuario_en_tabla(usuario))
+                self.logger.log_user_action(self.usuario, f"Usuario creado: {usuario}")
+            else:
+                messagebox.showerror("Error", "No se pudo crear el usuario. Verifica que no sea superadmin o que el usuario ya exista.")
+        except Exception as e:
+            self.logger.error(f"Error creando usuario: {str(e)}")
+            messagebox.showerror("Error", f"Error al crear usuario: {str(e)}")
+    
+    def cargar_usuarios(self):
+        """Carga los usuarios en la tabla principal"""
+        self._cargar_usuarios_en_tabla(self.usuarios_tree)
+    
+    def on_usuario_select(self, event=None):
+        selection = self.usuarios_tree.selection()
+        print("SELECCIÓN:", selection)  # Debug
+        if selection:
+            item = self.usuarios_tree.item(selection[0])
+            values = item['values']
+            if values:
+                self.usuario_form_var.set(values[0])  # Usuario
+                self.rol_form_var.set(values[1])      # Rol
+                self.activo_form_var.set(values[2])   # Estado
+                self.password_form_var.set("")        # No mostrar contraseña
+                self.usuario_seleccionado = values
+        else:
+            self.usuario_seleccionado = None
+
+    def eliminar_usuario(self):
+        selection = self.usuarios_tree.selection()
         if not selection:
-            messagebox.showwarning("Sin selección", "Selecciona un ítem para eliminar")
+            self.usuarios_tree.focus_set()
+            messagebox.showwarning("Sin selección", "Selecciona un usuario para eliminar")
             return
-        item = self.items_tree.item(selection[0])
+        item = self.usuarios_tree.item(selection[0])
         values = item['values']
         if not values:
+            messagebox.showwarning("Sin selección", "Selecciona un usuario para eliminar")
             return
-        codigo_barras, item_val, resultado, fecha = values
-        # Confirmación con contraseña
-        usuario = self.usuario
-        password = simpledialog.askstring("Confirmar eliminación", "Introduce tu contraseña para eliminar el ítem:", show="*")
-        if not password:
+        usuario = values[0]
+        if usuario == self.usuario:
+            messagebox.showwarning("Error", "No puedes eliminar tu propio usuario")
             return
-        # Verificar contraseña
-        if not self.usuario_model.autenticar_usuario(usuario, password):
-            messagebox.showerror("Error", "Contraseña incorrecta. No se eliminó el ítem.")
+        if usuario == "superadmin":
+            messagebox.showwarning("Prohibido", "No puedes eliminar el usuario superadmin.")
             return
-        ok = self.codigo_model.eliminar_item(codigo_barras)
-        if ok:
-            self.cargar_items()
-            messagebox.showinfo("Éxito", "Ítem eliminado correctamente.")
-        else:
-            messagebox.showerror("Error", "No se pudo eliminar el ítem.")
+        if messagebox.askyesno("Confirmar", f"¿Estás seguro de eliminar al usuario '{usuario}'?"):
+            try:
+                resultado = self.usuario_model.eliminar_usuario(usuario)
+                if resultado:
+                    messagebox.showinfo("Éxito", "Usuario eliminado correctamente")
+                    self.cargar_usuarios()
+                    self.limpiar_formulario_usuario()
+                    self.usuarios_tree.selection_remove(self.usuarios_tree.selection())
+                    self.logger.log_user_action(self.usuario, f"Usuario eliminado: {usuario}")
+                else:
+                    messagebox.showerror("Error", "No se pudo eliminar el usuario")
+            except Exception as e:
+                self.logger.error(f"Error eliminando usuario: {str(e)}")
+                messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}")
 
+    def cambiar_estado_usuario(self):
+        selection = self.usuarios_tree.selection()
+        if not selection:
+            self.usuarios_tree.focus_set()
+            messagebox.showwarning("Sin selección", "Selecciona un usuario para cambiar su estado")
+            return
+        item = self.usuarios_tree.item(selection[0])
+        values = item['values']
+        if not values:
+            messagebox.showwarning("Sin selección", "Selecciona un usuario para cambiar su estado")
+            return
+        usuario = values[0]
+        estado_actual = values[2]
+        if usuario == "superadmin":
+            messagebox.showwarning("Prohibido", "No puedes cambiar el estado del usuario superadmin.")
+            return
+        nuevo_estado = "inactivo" if estado_actual == "activo" else "activo"
+        try:
+            resultado = self.usuario_model.cambiar_estado_usuario(usuario, nuevo_estado)
+            if resultado:
+                messagebox.showinfo("Éxito", f"Estado cambiado a {nuevo_estado}")
+                self.cargar_usuarios()
+                self.usuarios_tree.selection_remove(self.usuarios_tree.selection())
+                self.logger.log_user_action(self.usuario, f"Estado cambiado para {usuario}: {nuevo_estado}")
+            else:
+                messagebox.showerror("Error", "No se pudo cambiar el estado")
+        except Exception as e:
+            self.logger.error(f"Error cambiando estado: {str(e)}")
+            messagebox.showerror("Error", f"Error al cambiar estado: {str(e)}")
+
+    def limpiar_formulario_usuario(self):
+        self.usuario_form_var.set("")
+        self.password_form_var.set("")
+        self.rol_form_var.set("usuario")
+        self.activo_form_var.set("activo")
+        self.usuario_seleccionado = None
+        self.usuarios_tree.selection_remove(self.usuarios_tree.selection())
+
+    def _seleccionar_usuario_en_tabla(self, usuario_nombre):
+        """Selecciona automáticamente un usuario en la tabla después de crearlo"""
+        try:
+            for item_id in self.usuarios_tree.get_children():
+                values = self.usuarios_tree.item(item_id)["values"]
+                if values and values[0] == usuario_nombre:
+                    self.usuarios_tree.selection_set(item_id)
+                    self.usuarios_tree.focus(item_id)
+                    self.usuarios_tree.see(item_id)
+                    self.on_usuario_select()  # Llama el evento para activar botones
+                    print(f"Usuario seleccionado automáticamente: {usuario_nombre}")
+                    break
+        except Exception as e:
+            self.logger.error(f"Error seleccionando usuario en tabla: {str(e)}")
+    
     def _configurar_tab_escaner(self, parent):
         """Configura la pestaña del escáner"""
         # Frame principal
@@ -1000,6 +1320,16 @@ class MainWindow:
             relief="flat", borderwidth=0, width=16, height=2
         )
         export_btn.pack(pady=20)
+    
+    def cerrar_sesion(self):
+        """Cierra la sesión y regresa a la pantalla de login"""
+        try:
+            self.logger.log_user_action(self.usuario, "Cerrar sesión")
+            self.master.destroy()
+            app = EscanerApp()
+            app.ejecutar()
+        except Exception as e:
+            print(f"Error al cerrar sesión: {str(e)}")
     
     def buscar_codigo(self):
         import os
@@ -1595,320 +1925,6 @@ class MainWindow:
             width=260,
             height=36
         ).pack(pady=5, padx=20, anchor="w")
-
-    def _crear_formulario_usuario(self, parent, side="left"):
-        """Crea el formulario de usuario para superadmin"""
-        form_frame = ct.CTkFrame(parent, fg_color="#111111")
-        form_frame.pack(side=side, fill="both", expand=True, padx=(0, 10))
-        
-        # Título del formulario
-        ct.CTkLabel(
-            form_frame,
-            text="Crear/Editar Usuario",
-            font=("Segoe UI", 16, "bold"),
-            text_color="#00FFAA"
-        ).pack(pady=(20, 20))
-        
-        # Variables
-        self.usuario_form_var = StringVar()
-        self.password_form_var = StringVar()
-        self.rol_form_var = StringVar(value="usuario")
-        self.activo_form_var = StringVar(value="activo")
-        
-        # Usuario
-        ct.CTkLabel(form_frame, text="Usuario:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
-        self.usuario_form_entry = ct.CTkEntry(
-            form_frame,
-            textvariable=self.usuario_form_var,
-            width=300,
-            height=32
-        )
-        self.usuario_form_entry.pack(padx=20, pady=(0, 15))
-        
-        # Contraseña
-        ct.CTkLabel(form_frame, text="Contraseña:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
-        self.password_form_entry = ct.CTkEntry(
-            form_frame,
-            textvariable=self.password_form_var,
-            show="*",
-            width=300,
-            height=32
-        )
-        self.password_form_entry.pack(padx=20, pady=(0, 15))
-        
-        # Rol
-        ct.CTkLabel(form_frame, text="Rol:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
-        self.rol_form_menu = ct.CTkOptionMenu(
-            form_frame,
-            variable=self.rol_form_var,
-            values=["usuario", "captura", "admin"],  # Eliminado 'superadmin'
-            width=300,
-            height=32
-        )
-        self.rol_form_menu.pack(padx=20, pady=(0, 15))
-        
-        # Estado
-        ct.CTkLabel(form_frame, text="Estado:", text_color="#00FFAA").pack(anchor="w", padx=20, pady=(0, 5))
-        self.activo_form_menu = ct.CTkOptionMenu(
-            form_frame,
-            variable=self.activo_form_var,
-            values=["activo", "inactivo"],
-            width=300,
-            height=32
-        )
-        self.activo_form_menu.pack(padx=20, pady=(0, 20))
-        
-        # Botones
-        buttons_frame = ct.CTkFrame(form_frame, fg_color="#111111")
-        buttons_frame.pack(pady=(0, 20))
-        
-        ct.CTkButton(
-            buttons_frame,
-            text="Crear Usuario",
-            command=self.crear_usuario,
-            fg_color="#00FFAA",
-            text_color="#000000",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
-        
-        ct.CTkButton(
-            buttons_frame,
-            text="Limpiar",
-            command=self.limpiar_formulario_usuario,
-            fg_color="#FF3333",
-            text_color="#FFFFFF",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
-    
-    def _crear_lista_usuarios(self, parent, side="right"):
-        """Crea la lista de usuarios para superadmin"""
-        list_frame = ct.CTkFrame(parent, fg_color="#111111")
-        list_frame.pack(side=side, fill="both", expand=True, padx=(10, 0))
-        
-        # Título de la lista
-        ct.CTkLabel(
-            list_frame,
-            text="Usuarios Registrados",
-            font=("Segoe UI", 16, "bold"),
-            text_color="#00FFAA"
-        ).pack(pady=(20, 20))
-        
-        # Frame para la tabla
-        table_frame = ct.CTkFrame(list_frame, fg_color="#000000")
-        table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        
-        # Crear tabla con ttk.Treeview
-        from tkinter import ttk
-        
-        columns = ("Usuario", "Rol", "Estado", "Último Acceso")
-        self.usuarios_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15)
-        
-        # Configurar columnas
-        for col in columns:
-            self.usuarios_tree.heading(col, text=col)
-            self.usuarios_tree.column(col, width=120, anchor="center")
-        
-        # Estilo de la tabla
-        style = ttk.Style()
-        style.theme_use('default')
-        style.configure("Treeview",
-                        background="#000000",
-                        foreground="#00FFAA",
-                        rowheight=25,
-                        fieldbackground="#000000")
-        style.configure("Treeview.Heading",
-                        background="#111111",
-                        foreground="#00FFAA",
-                        font=("Segoe UI", 10, "bold"))
-        style.map('Treeview', background=[('selected', '#222222')])
-        
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.usuarios_tree.yview)
-        self.usuarios_tree.configure(yscrollcommand=scrollbar.set)
-        
-        # Empaquetar tabla y scrollbar
-        self.usuarios_tree.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Cargar usuarios
-        self.cargar_usuarios()
-        
-        # Evento de selección
-        self.usuarios_tree.bind("<<TreeviewSelect>>", self.on_usuario_select)
-        
-        # Botones de acción
-        action_frame = ct.CTkFrame(list_frame, fg_color="#111111")
-        action_frame.pack(pady=(0, 20))
-        
-        ct.CTkButton(
-            action_frame,
-            text="Eliminar Usuario",
-            command=self.eliminar_usuario,
-            fg_color="#FF3333",
-            text_color="#FFFFFF",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
-        
-        ct.CTkButton(
-            action_frame,
-            text="Cambiar Estado",
-            command=self.cambiar_estado_usuario,
-            fg_color="#FFAA00",
-            text_color="#000000",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
-        
-        ct.CTkButton(
-            action_frame,
-            text="Refrescar",
-            command=self.cargar_usuarios,
-            fg_color="#00AAFF",
-            text_color="#FFFFFF",
-            width=120,
-            height=32
-        ).pack(side="left", padx=5)
-    
-    def cargar_usuarios(self):
-        """Carga los usuarios en la tabla"""
-        try:
-            # Limpiar tabla
-            for item in self.usuarios_tree.get_children():
-                self.usuarios_tree.delete(item)
-            
-            # Obtener usuarios de la base de datos
-            usuarios = self.usuario_model.obtener_todos_usuarios()
-            
-            # Insertar en la tabla
-            for usuario in usuarios:
-                self.usuarios_tree.insert("", "end", values=(
-                    usuario.get('usuario', ''),
-                    usuario.get('rol', ''),
-                    usuario.get('estado', ''),
-                    usuario.get('ultimo_acceso', '')
-                ))
-                
-        except Exception as e:
-            self.logger.error(f"Error cargando usuarios: {str(e)}")
-    
-    def crear_usuario(self):
-        """Crea un nuevo usuario"""
-        try:
-            usuario = self.usuario_form_var.get().strip()
-            password = self.password_form_var.get().strip()
-            rol = self.rol_form_var.get()
-            activo = self.activo_form_var.get()
-            # Validar campos
-            if not usuario or not password:
-                messagebox.showwarning("Campos vacíos", "Usuario y contraseña son obligatorios")
-                return
-            # Proteger superadmin
-            if usuario == "superadmin" or rol == "superadmin":
-                messagebox.showwarning("Prohibido", "No puedes crear ni modificar el usuario superadmin desde la interfaz.")
-                return
-            # Validar formato
-            es_valido_usuario, _ = Validators.validar_usuario(usuario)
-            es_valido_pass, _ = Validators.validar_contraseña(password)
-            if not es_valido_usuario or not es_valido_pass:
-                messagebox.showwarning("Formato inválido", "Formato de usuario o contraseña inválido")
-                return
-            # Crear usuario
-            resultado = self.usuario_model.crear_usuario(usuario, password, rol, activo)
-            if resultado:
-                messagebox.showinfo("Éxito", "Usuario creado correctamente")
-                self.limpiar_formulario_usuario()
-                self.cargar_usuarios()
-                self.logger.log_user_action(self.usuario, f"Usuario creado: {usuario}")
-            else:
-                messagebox.showerror("Error", "No se pudo crear el usuario. Verifica que no sea superadmin o que el usuario ya exista.")
-        except Exception as e:
-            self.logger.error(f"Error creando usuario: {str(e)}")
-            messagebox.showerror("Error", f"Error al crear usuario: {str(e)}")
-    
-    def limpiar_formulario_usuario(self):
-        """Limpia el formulario de usuario"""
-        self.usuario_form_var.set("")
-        self.password_form_var.set("")
-        self.rol_form_var.set("usuario")
-        self.activo_form_var.set("activo")
-    
-    def on_usuario_select(self, event):
-        """Maneja la selección de un usuario en la tabla"""
-        selection = self.usuarios_tree.selection()
-        if selection:
-            item = self.usuarios_tree.item(selection[0])
-            values = item['values']
-            if values:
-                self.usuario_form_var.set(values[0])  # Usuario
-                self.rol_form_var.set(values[1])      # Rol
-                self.activo_form_var.set(values[2])   # Estado
-                self.password_form_var.set("")        # No mostrar contraseña
-    
-    def eliminar_usuario(self):
-        """Elimina el usuario seleccionado"""
-        selection = self.usuarios_tree.selection()
-        if not selection:
-            messagebox.showwarning("Sin selección", "Selecciona un usuario para eliminar")
-            return
-        item = self.usuarios_tree.item(selection[0])
-        usuario = item['values'][0]
-        if usuario == self.usuario:
-            messagebox.showwarning("Error", "No puedes eliminar tu propio usuario")
-            return
-        if usuario == "superadmin":
-            messagebox.showwarning("Prohibido", "No puedes eliminar el usuario superadmin.")
-            return
-        if messagebox.askyesno("Confirmar", f"¿Estás seguro de eliminar al usuario '{usuario}'?"):
-            try:
-                resultado = self.usuario_model.eliminar_usuario(usuario)
-                if resultado:
-                    messagebox.showinfo("Éxito", "Usuario eliminado correctamente")
-                    self.cargar_usuarios()
-                    self.limpiar_formulario_usuario()
-                    self.logger.log_user_action(self.usuario, f"Usuario eliminado: {usuario}")
-                else:
-                    messagebox.showerror("Error", "No se pudo eliminar el usuario")
-            except Exception as e:
-                self.logger.error(f"Error eliminando usuario: {str(e)}")
-                messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}")
-    
-    def cambiar_estado_usuario(self):
-        """Cambia el estado del usuario seleccionado"""
-        selection = self.usuarios_tree.selection()
-        if not selection:
-            messagebox.showwarning("Sin selección", "Selecciona un usuario para cambiar su estado")
-            return
-        item = self.usuarios_tree.item(selection[0])
-        usuario = item['values'][0]
-        estado_actual = item['values'][2]
-        if usuario == "superadmin":
-            messagebox.showwarning("Prohibido", "No puedes cambiar el estado del usuario superadmin.")
-            return
-        nuevo_estado = "inactivo" if estado_actual == "activo" else "activo"
-        try:
-            resultado = self.usuario_model.cambiar_estado_usuario(usuario, nuevo_estado)
-            if resultado:
-                messagebox.showinfo("Éxito", f"Estado cambiado a {nuevo_estado}")
-                self.cargar_usuarios()
-                self.logger.log_user_action(self.usuario, f"Estado cambiado para {usuario}: {nuevo_estado}")
-            else:
-                messagebox.showerror("Error", "No se pudo cambiar el estado")
-        except Exception as e:
-            self.logger.error(f"Error cambiando estado: {str(e)}")
-            messagebox.showerror("Error", f"Error al cambiar estado: {str(e)}")
-
-    # Botón cerrar sesión (logout)
-    def cerrar_sesion(self):
-        """Cierra la sesión y regresa a la pantalla de login"""
-        try:
-            self.master.destroy()
-            app = EscanerApp()
-            app.ejecutar()
-        except Exception as e:
-            print(f"Error al cerrar sesión: {str(e)}")
 
 if __name__ == "__main__":
     app = EscanerApp()

@@ -51,15 +51,14 @@ class Usuario:
             print(f"Error autenticando usuario: {str(e)}")
             return None
     
-    def crear_usuario(self, usuario: str, contraseña: str, rol: str = "usuario") -> bool:
+    def crear_usuario(self, usuario: str, contraseña: str, rol: str = "usuario", estado: str = "activo") -> bool:
         """
         Crea un nuevo usuario
-        
         Args:
             usuario: Nombre de usuario
             contraseña: Contraseña del usuario
             rol: Rol del usuario
-            
+            estado: Estado del usuario ('activo' o 'inactivo')
         Returns:
             bool: True si se creó exitosamente
         """
@@ -72,25 +71,22 @@ class Usuario:
                 "SELECT id FROM usuarios WHERE usuario = %s",
                 (usuario,)
             )
-            
             if existing:
                 return False
-            
             # Hash de la contraseña
             contraseña_hash = hashlib.sha256(contraseña.encode()).hexdigest()
-            
+            # Determinar estado
+            activo = True if estado.lower() == "activo" else False
             # Crear usuario
             data = {
                 "usuario": usuario,
                 "contraseña": contraseña_hash,
                 "rol": rol,
-                "activo": True,
+                "activo": activo,
                 "fecha_creacion": datetime.now()
             }
-            
             self.db.insert_one("usuarios", data)
             return True
-            
         except Exception as e:
             print(f"Error creando usuario: {str(e)}")
             return False
