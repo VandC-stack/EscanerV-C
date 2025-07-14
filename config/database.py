@@ -196,3 +196,27 @@ class DatabaseManager:
         except Exception as e:
             self.logger.error(f"Error arreglando codificación: {str(e)}")
             return False 
+
+    def insert_one(self, table: str, data: dict) -> Optional[int]:
+        """Inserta un registro en la tabla especificada y retorna el ID insertado."""
+        keys = ', '.join(data.keys())
+        values = tuple(data.values())
+        placeholders = ', '.join(['%s'] * len(data))
+        query = f"INSERT INTO {table} ({keys}) VALUES ({placeholders}) RETURNING id"
+        try:
+            if not self.connection or self.connection.closed:
+                if not self.connect():
+                    return None
+            cursor = self.connection.cursor()
+            cursor.execute(query, values)
+            inserted_id = cursor.fetchone()[0]
+            self.connection.commit()
+            return inserted_id
+        except Exception as e:
+            self.logger.error(f"Error insertando en {table}: {str(e)}")
+            if self.connection:
+                self.connection.rollback()
+            return None
+        finally:
+            if 'cursor' in locals():
+                cursor.close() 
