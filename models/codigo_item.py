@@ -478,3 +478,42 @@ class CodigoItem:
                 })
         except Exception as e:
             print(f"Error registrando carga de CLP: {str(e)}") 
+
+    def eliminar_item(self, codigo_barras: str) -> bool:
+        """
+        Elimina un ítem y su código de barras asociado de la base de datos
+        Args:
+            codigo_barras: Código de barras del ítem a eliminar
+        Returns:
+            bool: True si se eliminó exitosamente
+        """
+        try:
+            # Buscar el item_id asociado al código de barras
+            res = self.db.execute_query(
+                "SELECT item_id FROM codigos_items WHERE codigo_barras = %s",
+                (codigo_barras,)
+            )
+            if not res:
+                return False
+            item_id = res[0]['item_id']
+            # Eliminar el código de barras
+            self.db.execute_query(
+                "DELETE FROM codigos_items WHERE codigo_barras = %s",
+                (codigo_barras,),
+                fetch=False
+            )
+            # Eliminar el ítem si no tiene más códigos asociados
+            otros_codigos = self.db.execute_query(
+                "SELECT COUNT(*) as count FROM codigos_items WHERE item_id = %s",
+                (item_id,)
+            )
+            if otros_codigos and otros_codigos[0]['count'] == 0:
+                self.db.execute_query(
+                    "DELETE FROM items WHERE id = %s",
+                    (item_id,),
+                    fetch=False
+                )
+            return True
+        except Exception as e:
+            print(f"Error eliminando ítem: {str(e)}")
+            return False 

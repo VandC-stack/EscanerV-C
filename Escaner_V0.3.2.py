@@ -566,30 +566,12 @@ class MainWindow:
             # Usuarios
             tablas_tabview.add("Usuarios")
             self._crear_lista_usuarios(tablas_tabview.tab("Usuarios"), side="top")
-            # Codigos_items
-            tablas_tabview.add("Codigos_items")
-            self.codigos_items_tab = tablas_tabview.tab("Codigos_items")
-            self._mostrar_tabla_sql(self.codigos_items_tab, "codigos_items")
-            # Capturas
+            # Ítems (nueva pestaña)
+            tablas_tabview.add("Ítems")
+            self._crear_tabla_items(tablas_tabview.tab("Ítems"))
+            # Capturas (solo mostrar historial, no revisión)
             tablas_tabview.add("Capturas")
-            if self.rol == "superadmin":
-                self._configurar_tab_revision_capturas(tablas_tabview.tab("Capturas"))
-            else:
-                self._configurar_tab_captura(tablas_tabview.tab("Capturas"))
-            # Refrescar codigos_items y usuarios al cambiar de pestaña
-            def on_tab_change():
-                current_tab = tablas_tabview.get()
-                if current_tab == "Codigos_items":
-                    self._mostrar_tabla_sql(self.codigos_items_tab, "codigos_items")
-                elif current_tab == "Usuarios":
-                    # Refrescar la tabla de usuarios
-                    for widget in tablas_tabview.tab("Usuarios").winfo_children():
-                        widget.destroy()
-                    self._crear_lista_usuarios(tablas_tabview.tab("Usuarios"), side="top")
-            try:
-                tablas_tabview.configure(command=on_tab_change)
-            except Exception:
-                pass
+            self._configurar_tab_captura(tablas_tabview.tab("Capturas"))
         except Exception as e:
             try:
                 if hasattr(self, 'logger') and self.logger:
@@ -599,185 +581,130 @@ class MainWindow:
             except:
                 print(f"Error configurando tab base de datos: {str(e)}")
             raise e
-    
-    def _configurar_tab_revision_capturas(self, parent):
-        from tkinter import ttk, messagebox
-        from models.captura import Captura
-        # Scrollable frame para la tabla y los botones
-        scroll_frame = ct.CTkScrollableFrame(parent, fg_color="#000000", width=900, height=500)
-        scroll_frame.pack(fill="both", expand=True, padx=20, pady=(20, 0))
-        ct.CTkLabel(
-            scroll_frame,
-            text="Revisión de Capturas",
-            font=("Segoe UI", 18, "bold"),
-            text_color="#00FFAA"
-        ).pack(pady=(0, 20))
-        captura_model = Captura(self.db_manager)
-        capturas = captura_model.obtener_todas_capturas()
-        if not capturas:
-            ct.CTkLabel(
-                scroll_frame,
-                text="No hay capturas registradas.",
-                text_color="#00FFAA",
-                font=("Segoe UI", 14, "bold")
-            ).pack(pady=20)
-            return
-        columns = list(capturas[0].keys())
-        style = ttk.Style()
-        style.theme_use('default')
-        style.configure("Treeview",
-                        background="#000000",
-                        foreground="#00FFAA",
-                        rowheight=24,
-                        fieldbackground="#000000",
-                        font=("Segoe UI", 10))
-        style.configure("Treeview.Heading",
-                        background="#111111",
-                        foreground="#00FFAA",
-                        font=("Segoe UI", 11, "bold"))
-        style.map('Treeview', background=[('selected', '#222222')])
-        tree = ttk.Treeview(scroll_frame, columns=columns, show="headings", height=16, style="Treeview", selectmode="extended")
-        for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=120, anchor="center")
-        for row in capturas:
-            tree.insert("", "end", values=[row[col] for col in columns])
-        tree.pack(fill="both", expand=True, padx=10, pady=10)
-        ct.CTkLabel(scroll_frame, text="Usa Ctrl o Shift para seleccionar varias capturas.", text_color="#55DDFF").pack(pady=(0, 8))
-        btns_frame = ct.CTkFrame(scroll_frame, fg_color="#000000")
-        btns_frame.pack(pady=10)
-        def refrescar_codigos_items_tabla():
-            # Busca el tabview de la base de datos y refresca la tabla codigos_items
-            try:
-                # Busca el frame principal de la base de datos
-                for widget in parent.master.winfo_children():
-                    if isinstance(widget, ct.CTkTabview):
-                        tabview = widget
-                        if "Codigos_items" in tabview._tabs:
-                            codigos_tab = tabview.tab("Codigos_items")
-                            self._mostrar_tabla_sql(codigos_tab, "codigos_items")
-            except Exception as e:
-                print(f"Error refrescando codigos_items: {e}")
-        def aceptar():
-            seleccion = tree.selection()
-            if not seleccion:
-                messagebox.showwarning("Sin selección", "Selecciona al menos una captura para aceptar.")
-                return
-            ids = [tree.item(item)['values'][0] for item in seleccion]
-            resultado = captura_model.mover_capturas_a_historico(ids)
-            for item in seleccion:
-                tree.delete(item)
-            messagebox.showinfo("Éxito", f"Capturas aceptadas y movidas a codigos_items. Procesadas: {resultado['procesados']}, Actualizadas: {resultado['actualizados']}")
-            refrescar_codigos_items_tabla()  # Refresca automáticamente la tabla codigos_items
-        def denegar():
-            seleccion = tree.selection()
-            if not seleccion:
-                messagebox.showwarning("Sin selección", "Selecciona al menos una captura para denegar.")
-                return
-            ids = [tree.item(item)['values'][0] for item in seleccion]
-            for id_captura in ids:
-                self.db_manager.execute_query("DELETE FROM capturas WHERE id = %s", (id_captura,), fetch=False)
-            for item in seleccion:
-                tree.delete(item)
-            messagebox.showinfo("Éxito", "Capturas denegadas y eliminadas correctamente.")
-        aceptar_btn = ct.CTkButton(
-            btns_frame,
-            text="Aceptar Captura(s)",
-            command=aceptar,
-            fg_color="#00FFAA",
-            text_color="#000000",
-            font=("Segoe UI", 12, "bold"),
-            border_width=2,
-            border_color="#00FFAA",
-            corner_radius=10
-        )
-        aceptar_btn.pack(side="left", padx=10)
-        denegar_btn = ct.CTkButton(
-            btns_frame,
-            text="Denegar Captura(s)",
-            command=denegar,
-            fg_color="#FF3333",
-            text_color="#FFFFFF",
-            font=("Segoe UI", 12, "bold"),
-            border_width=2,
-            border_color="#FF3333",
-            corner_radius=10
-        )
-        denegar_btn.pack(side="left", padx=10)
-    
-    def _mostrar_tabla_sql(self, parent, nombre_tabla):
-        from tkinter import ttk
+
+    def _crear_tabla_items(self, parent):
+        from tkinter import ttk, simpledialog
         # Limpiar widgets previos
         for widget in parent.winfo_children():
             widget.destroy()
-        # Buscador
-        search_var = None
-        if nombre_tabla == "codigos_items":
-            search_frame = ct.CTkFrame(parent, fg_color="#000000")
-            search_frame.pack(fill="x", padx=10, pady=(10, 0))
-            search_var = ct.StringVar()
-            ct.CTkLabel(search_frame, text="Buscar por código de barras o item:", text_color="#00FFAA").pack(side="left", padx=(0, 8))
-            search_entry = ct.CTkEntry(search_frame, textvariable=search_var, width=200)
-            search_entry.pack(side="left")
-        # Obtener datos de la tabla
-        try:
-            datos = self.db_manager.execute_query(f"SELECT * FROM {nombre_tabla}")
-        except Exception as e:
-            label = ct.CTkLabel(
-                parent,
-                text=f"Error al obtener datos: {str(e)}",
-                text_color="#FF3333",
-                font=("Segoe UI", 14, "bold")
-            )
-            label.pack(pady=20)
-            return
-        if not datos:
-            label = ct.CTkLabel(
-                parent,
-                text=f"No hay datos en la tabla '{nombre_tabla}'.",
-                text_color="#00FFAA",
-                font=("Segoe UI", 14, "bold")
-            )
-            label.pack(pady=20)
-            return
-        columns = list(datos[0].keys())
+        ct.CTkLabel(
+            parent,
+            text="Gestión de Ítems",
+            font=("Segoe UI", 16, "bold"),
+            text_color="#00FFAA"
+        ).pack(pady=(20, 20))
+        # Frame para la tabla
+        table_frame = ct.CTkFrame(parent, fg_color="#000000")
+        table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        columns = ("Código de Barras", "Item", "Resultado", "Fecha Actualización")
+        self.items_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=15)
+        for col in columns:
+            self.items_tree.heading(col, text=col)
+            self.items_tree.column(col, width=140, anchor="center")
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
                         background="#000000",
                         foreground="#00FFAA",
-                        rowheight=24,
-                        fieldbackground="#000000",
-                        font=("Segoe UI", 10))
+                        rowheight=25,
+                        fieldbackground="#000000")
         style.configure("Treeview.Heading",
                         background="#111111",
                         foreground="#00FFAA",
-                        font=("Segoe UI", 11, "bold"))
+                        font=("Segoe UI", 10, "bold"))
         style.map('Treeview', background=[('selected', '#222222')])
-        tree = ttk.Treeview(parent, columns=columns, show="headings", height=16, style="Treeview")
-        for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=120, anchor="center")
-        # Guardar referencia a los datos originales para el filtro
-        self._codigos_items_data = datos if nombre_tabla == "codigos_items" else None
-        for row in datos:
-            tree.insert("", "end", values=[row[col] for col in columns])
-        tree.pack(fill="both", expand=True, padx=10, pady=10)
-        # Lógica de búsqueda para codigos_items
-        if nombre_tabla == "codigos_items" and search_var is not None:
-            def filtrar(*args):
-                filtro = search_var.get().strip().lower()
-                # Limpiar la tabla
-                for item in tree.get_children():
-                    tree.delete(item)
-                # Volver a insertar los datos filtrados
-                for row in self._codigos_items_data:
-                    codigo = str(row.get('codigo_barras', '')).lower()
-                    item_val = str(row.get('item', '')).lower()
-                    if not filtro or filtro in codigo or filtro in item_val:
-                        tree.insert("", "end", values=[row[col] for col in columns])
-            search_var.trace_add('write', filtrar)
-    
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.items_tree.yview)
+        self.items_tree.configure(yscrollcommand=scrollbar.set)
+        self.items_tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        self.cargar_items()
+        # Evento de selección
+        self.items_tree.bind("<Double-1>", self.on_item_edit)
+        # Botones de acción
+        action_frame = ct.CTkFrame(parent, fg_color="#111111")
+        action_frame.pack(pady=(0, 20))
+        ct.CTkButton(
+            action_frame,
+            text="Eliminar Ítem",
+            command=self.eliminar_item,
+            fg_color="#FF3333",
+            text_color="#FFFFFF",
+            width=120,
+            height=32
+        ).pack(side="left", padx=5)
+        ct.CTkButton(
+            action_frame,
+            text="Refrescar",
+            command=self.cargar_items,
+            fg_color="#00AAFF",
+            text_color="#FFFFFF",
+            width=120,
+            height=32
+        ).pack(side="left", padx=5)
+
+    def cargar_items(self):
+        try:
+            for item in self.items_tree.get_children():
+                self.items_tree.delete(item)
+            items = self.codigo_model.buscar_por_patron("")
+            for it in items:
+                self.items_tree.insert("", "end", values=(
+                    it.get('codigo_barras', ''),
+                    it.get('item', ''),
+                    it.get('resultado', ''),
+                    it.get('fecha_actualizacion', '')
+                ))
+        except Exception as e:
+            self.logger.error(f"Error cargando ítems: {str(e)}")
+
+    def on_item_edit(self, event):
+        item_id = self.items_tree.focus()
+        if not item_id:
+            return
+        values = self.items_tree.item(item_id)['values']
+        if not values:
+            return
+        codigo_barras, item, resultado, fecha = values
+        nuevo_resultado = simpledialog.askstring(
+            "Editar Resultado",
+            f"Editar resultado para el ítem {item} (código: {codigo_barras}):",
+            initialvalue=resultado
+        )
+        if nuevo_resultado is not None:
+            ok = self.codigo_model.actualizar_resultado(codigo_barras, nuevo_resultado)
+            if ok:
+                self.cargar_items()
+                messagebox.showinfo("Éxito", "Resultado actualizado correctamente.")
+            else:
+                messagebox.showerror("Error", "No se pudo actualizar el resultado.")
+
+    def eliminar_item(self):
+        from tkinter import simpledialog
+        selection = self.items_tree.selection()
+        if not selection:
+            messagebox.showwarning("Sin selección", "Selecciona un ítem para eliminar")
+            return
+        item = self.items_tree.item(selection[0])
+        values = item['values']
+        if not values:
+            return
+        codigo_barras, item_val, resultado, fecha = values
+        # Confirmación con contraseña
+        usuario = self.usuario
+        password = simpledialog.askstring("Confirmar eliminación", "Introduce tu contraseña para eliminar el ítem:", show="*")
+        if not password:
+            return
+        # Verificar contraseña
+        if not self.usuario_model.autenticar_usuario(usuario, password):
+            messagebox.showerror("Error", "Contraseña incorrecta. No se eliminó el ítem.")
+            return
+        ok = self.codigo_model.eliminar_item(codigo_barras)
+        if ok:
+            self.cargar_items()
+            messagebox.showinfo("Éxito", "Ítem eliminado correctamente.")
+        else:
+            messagebox.showerror("Error", "No se pudo eliminar el ítem.")
+
     def _configurar_tab_escaner(self, parent):
         """Configura la pestaña del escáner"""
         # Frame principal
@@ -1373,46 +1300,32 @@ class MainWindow:
         self.guardar_btn.pack(pady=(10, 0))
     
     def guardar_captura_offline(self):
-        """Guarda la captura offline obteniendo los valores de los campos"""
+        """Guarda la captura y la inserta/actualiza directamente en la tabla de ítems"""
         codigo = self.codigo_captura_var.get().strip()
         item = self.item_captura_var.get().strip()
         motivo = self.motivo_captura_var.get().strip() if self.cumple_captura_var.get() == "NO CUMPLE" else ""
         cumple = self.cumple_captura_var.get().strip()
-        
         if not codigo or not item or not cumple:
             messagebox.showwarning("Campos vacíos", "Código, item y cumple son obligatorios")
             return
         if cumple == "NO CUMPLE" and not motivo:
             messagebox.showwarning("Campos vacíos", "El motivo es obligatorio si el resultado es NO CUMPLE")
             return
-        self._guardar_captura_offline(codigo, item, motivo, cumple)
-        messagebox.showinfo("Éxito", "Captura guardada offline")
+        # Insertar o actualizar en codigos_items
+        resultado = cumple if cumple == "CUMPLE" else motivo
+        ok = self.codigo_model.actualizar_resultado(codigo, resultado)
+        if not ok:
+            # Si no existe, insertar
+            self.codigo_model.db.insert_one("codigos_items", {
+                "codigo_barras": codigo,
+                "item": item,
+                "resultado": resultado,
+                "fecha_actualizacion": pd.Timestamp.now()
+            })
+        messagebox.showinfo("Éxito", "Captura guardada y actualizada en ítems")
         self.codigo_captura_var.set("")
         self.item_captura_var.set("")
         self.codigo_captura_entry.focus_set()
-    
-    def _guardar_captura_offline(self, codigo, item, motivo, cumple):
-        """Guarda la captura localmente en un archivo JSON por usuario"""
-        ruta = f"capturas_pendientes_{self.usuario}.json"
-        captura = {
-            "codigo": codigo,
-            "item": item,
-            "motivo": motivo,
-            "cumple": cumple,
-            "usuario": self.usuario
-        }
-        try:
-            capturas = []
-            try:
-                with open(ruta, "r", encoding="utf-8") as f:
-                    capturas = json.load(f)
-            except Exception:
-                pass
-            capturas.append(captura)
-            with open(ruta, "w", encoding="utf-8") as f:
-                json.dump(capturas, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            self.logger.error(f"Error guardando captura offline: {str(e)}")
     
     def subir_capturas_offline(self):
         """Sube las capturas pendientes del archivo local a la base de datos"""
@@ -1728,7 +1641,7 @@ class MainWindow:
         self.rol_form_menu = ct.CTkOptionMenu(
             form_frame,
             variable=self.rol_form_var,
-            values=["usuario", "captura", "admin", "superadmin"],
+            values=["usuario", "captura", "admin"],  # Eliminado 'superadmin'
             width=300,
             height=32
         )
@@ -1888,31 +1801,29 @@ class MainWindow:
             password = self.password_form_var.get().strip()
             rol = self.rol_form_var.get()
             activo = self.activo_form_var.get()
-            
             # Validar campos
             if not usuario or not password:
                 messagebox.showwarning("Campos vacíos", "Usuario y contraseña son obligatorios")
                 return
-            
+            # Proteger superadmin
+            if usuario == "superadmin" or rol == "superadmin":
+                messagebox.showwarning("Prohibido", "No puedes crear ni modificar el usuario superadmin desde la interfaz.")
+                return
             # Validar formato
             es_valido_usuario, _ = Validators.validar_usuario(usuario)
             es_valido_pass, _ = Validators.validar_contraseña(password)
-            
             if not es_valido_usuario or not es_valido_pass:
                 messagebox.showwarning("Formato inválido", "Formato de usuario o contraseña inválido")
                 return
-            
             # Crear usuario
             resultado = self.usuario_model.crear_usuario(usuario, password, rol, activo)
-            
             if resultado:
                 messagebox.showinfo("Éxito", "Usuario creado correctamente")
                 self.limpiar_formulario_usuario()
                 self.cargar_usuarios()
                 self.logger.log_user_action(self.usuario, f"Usuario creado: {usuario}")
             else:
-                messagebox.showerror("Error", "No se pudo crear el usuario")
-                
+                messagebox.showerror("Error", "No se pudo crear el usuario. Verifica que no sea superadmin o que el usuario ya exista.")
         except Exception as e:
             self.logger.error(f"Error creando usuario: {str(e)}")
             messagebox.showerror("Error", f"Error al crear usuario: {str(e)}")
@@ -1942,14 +1853,14 @@ class MainWindow:
         if not selection:
             messagebox.showwarning("Sin selección", "Selecciona un usuario para eliminar")
             return
-        
         item = self.usuarios_tree.item(selection[0])
         usuario = item['values'][0]
-        
         if usuario == self.usuario:
             messagebox.showwarning("Error", "No puedes eliminar tu propio usuario")
             return
-        
+        if usuario == "superadmin":
+            messagebox.showwarning("Prohibido", "No puedes eliminar el usuario superadmin.")
+            return
         if messagebox.askyesno("Confirmar", f"¿Estás seguro de eliminar al usuario '{usuario}'?"):
             try:
                 resultado = self.usuario_model.eliminar_usuario(usuario)
@@ -1970,13 +1881,13 @@ class MainWindow:
         if not selection:
             messagebox.showwarning("Sin selección", "Selecciona un usuario para cambiar su estado")
             return
-        
         item = self.usuarios_tree.item(selection[0])
         usuario = item['values'][0]
         estado_actual = item['values'][2]
-        
+        if usuario == "superadmin":
+            messagebox.showwarning("Prohibido", "No puedes cambiar el estado del usuario superadmin.")
+            return
         nuevo_estado = "inactivo" if estado_actual == "activo" else "activo"
-        
         try:
             resultado = self.usuario_model.cambiar_estado_usuario(usuario, nuevo_estado)
             if resultado:
