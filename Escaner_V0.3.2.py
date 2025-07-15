@@ -45,6 +45,14 @@ from utils.validators import Validators
 print("Default encoding:", sys.getdefaultencoding())
 print("Filesystem encoding:", sys.getfilesystemencoding())
 
+# --- FUNCIÓN UTILITARIA PARA ACTUALIZAR WIDGETS DE FORMA SEGURA ---
+def safe_configure(widget, **kwargs):
+    try:
+        if widget and widget.winfo_exists():
+            widget.configure(**kwargs)
+    except Exception:
+        pass  # El widget ya no existe o la ventana fue destruida
+
 class EscanerApp:
     def __init__(self):
         self.root = ct.CTk()
@@ -213,24 +221,45 @@ class EscanerApp:
         main_frame = ct.CTkFrame(top, fg_color="#000000")
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
+        # Filtro por nombre de archivo
+        filtro_var = tk.StringVar()
+        def actualizar_cargas(*args):
+            filtro = filtro_var.get().strip().lower()
+            try:
+                if filtro:
+                    # Buscar en todo el historial por coincidencia de nombre de archivo
+                    query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE LOWER(archivo) LIKE %s ORDER BY fecha_carga DESC"
+                    cargas = self.db_manager.execute_query(query_cargas, (f"%{filtro}%",))
+                else:
+                    # Solo mostrar las cargas del día actual
+                    query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE fecha_carga::date = CURRENT_DATE ORDER BY fecha_carga DESC"
+                    cargas = self.db_manager.execute_query(query_cargas)
+            except Exception as e:
+                cargas = []
+            cargas_text = "Sin cargas."
+            if cargas:
+                cargas_text = "\n".join([
+                    f"{c['fecha_carga']}: {c['archivo']} (Usuario: {c['usuario']}, Códigos: {c['codigos_agregados']})" for c in cargas
+                ])
+            cargas_label.configure(state="normal")
+            cargas_label.delete("1.0", tk.END)
+            cargas_label.insert("1.0", cargas_text)
+            cargas_label.configure(state="disabled")
+
+        filtro_frame = ct.CTkFrame(main_frame, fg_color="#000000")
+        filtro_frame.pack(fill="x", pady=(0, 5))
+        ct.CTkLabel(filtro_frame, text="Filtrar por archivo:", text_color="#00FFAA").pack(side="left", padx=(0, 8))
+        filtro_entry = ct.CTkEntry(filtro_frame, textvariable=filtro_var, width=200)
+        filtro_entry.pack(side="left")
+        filtro_var.trace_add('write', lambda *args: actualizar_cargas())
+
         # Sección de cargas CLP
         ct.CTkLabel(
             main_frame, text="Cargas CLP del día:", font=("Segoe UI", 16, "bold"), text_color="#00FFAA", fg_color="#000000"
         ).pack(anchor="w", pady=(0, 5))
-        try:
-            query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE fecha_carga::date = CURRENT_DATE ORDER BY fecha_carga DESC"
-            cargas = self.db_manager.execute_query(query_cargas)
-        except Exception as e:
-            cargas = []
-        cargas_text = "Sin cargas hoy."
-        if cargas:
-            cargas_text = "\n".join([
-                f"{c['fecha_carga']}: {c['archivo']} (Usuario: {c['usuario']}, Códigos: {c['codigos_agregados']})" for c in cargas
-            ])
         cargas_label = ct.CTkTextbox(main_frame, width=650, height=60, fg_color="#111111", text_color="#00FFAA", font=("Segoe UI", 12))
-        cargas_label.insert("1.0", cargas_text)
-        cargas_label.configure(state="disabled")
         cargas_label.pack(pady=(0, 15))
+        actualizar_cargas()
 
         # Sección de consultas recientes
         ct.CTkLabel(
@@ -432,8 +461,7 @@ class LoginWindow:
     def _restaurar_boton(self):
         """Restaura el botón de login"""
         try:
-            if hasattr(self, 'login_button') and self.login_button.winfo_exists():
-                self.login_button.configure(state="normal", text="Entrar")
+            safe_configure(self.login_button, state="normal", text="Entrar")
         except:
             pass  # Widget ya destruido
 
@@ -785,6 +813,15 @@ class MainWindow:
         ).pack(side="left", padx=5)
         ct.CTkButton(
             action_frame,
+            text="Cambiar Contraseña",
+            command=self.cambiar_contraseña_usuario,
+            fg_color="#00AA00",
+            text_color="#FFFFFF",
+            width=120,
+            height=32
+        ).pack(side="left", padx=5)
+        ct.CTkButton(
+            action_frame,
             text="Refrescar",
             command=self.cargar_usuarios,
             fg_color="#00AAFF",
@@ -1001,6 +1038,45 @@ class MainWindow:
         except Exception as e:
             self.logger.error(f"Error cambiando estado: {str(e)}")
             messagebox.showerror("Error", f"Error al cambiar estado: {str(e)}")
+
+    def cambiar_contraseña_usuario(self):
+        selection = self.usuarios_tree.selection()
+        if not selection:
+            self.usuarios_tree.focus_set()
+            messagebox.showwarning("Sin selección", "Selecciona un usuario para cambiar su contraseña")
+            return
+        item = self.usuarios_tree.item(selection[0])
+        values = item['values']
+        if not values:
+            messagebox.showwarning("Sin selección", "Selecciona un usuario para cambiar su contraseña")
+            return
+        usuario = values[0]
+        if usuario == "superadmin":
+            messagebox.showwarning("Prohibido", "No puedes cambiar la contraseña del usuario superadmin.")
+            return
+        if messagebox.askyesno("Confirmar", f"¿Estás seguro de cambiar la contraseña del usuario '{usuario}'?"):
+            try:
+                nueva_contraseña = simpledialog.askstring("Cambiar Contraseña", "Ingrese la nueva contraseña:")
+                if nueva_contraseña:
+                    # Validar formato de contraseña
+                    es_valido_pass, mensaje = Validators.validar_contraseña(nueva_contraseña)
+                    if not es_valido_pass:
+                        messagebox.showwarning("Formato inválido", mensaje)
+                        return
+                    
+                    resultado = self.usuario_model.cambiar_contraseña(usuario, nueva_contraseña)
+                    if resultado:
+                        messagebox.showinfo("Éxito", f"Contraseña cambiada correctamente para el usuario '{usuario}'")
+                        self.cargar_usuarios()
+                        self.usuarios_tree.selection_remove(self.usuarios_tree.selection())
+                        self.logger.log_user_action(self.usuario, f"Contraseña cambiada para usuario: {usuario}")
+                    else:
+                        messagebox.showerror("Error", "No se pudo cambiar la contraseña")
+                else:
+                    messagebox.showwarning("Cancelado", "Cambio de contraseña cancelado")
+            except Exception as e:
+                self.logger.error(f"Error cambiando contraseña: {str(e)}")
+                messagebox.showerror("Error", f"Error al cambiar contraseña: {str(e)}")
 
     def limpiar_formulario_usuario(self):
         self.usuario_form_var.set("")
@@ -1397,7 +1473,7 @@ class MainWindow:
     
     def _restaurar_boton_busqueda(self):
         """Restaura el botón de búsqueda"""
-        self.search_button.configure(text="Buscar", state="normal")
+        safe_configure(self.search_button, text="Buscar", state="normal")
         self.codigo_var.set("")
         self.codigo_entry.focus_set()
     
@@ -1758,24 +1834,45 @@ class MainWindow:
         main_frame = ct.CTkFrame(top, fg_color="#000000")
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
+        # Filtro por nombre de archivo
+        filtro_var = tk.StringVar()
+        def actualizar_cargas(*args):
+            filtro = filtro_var.get().strip().lower()
+            try:
+                if filtro:
+                    # Buscar en todo el historial por coincidencia de nombre de archivo
+                    query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE LOWER(archivo) LIKE %s ORDER BY fecha_carga DESC"
+                    cargas = self.db_manager.execute_query(query_cargas, (f"%{filtro}%",))
+                else:
+                    # Solo mostrar las cargas del día actual
+                    query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE fecha_carga::date = CURRENT_DATE ORDER BY fecha_carga DESC"
+                    cargas = self.db_manager.execute_query(query_cargas)
+            except Exception as e:
+                cargas = []
+            cargas_text = "Sin cargas."
+            if cargas:
+                cargas_text = "\n".join([
+                    f"{c['fecha_carga']}: {c['archivo']} (Usuario: {c['usuario']}, Códigos: {c['codigos_agregados']})" for c in cargas
+                ])
+            cargas_label.configure(state="normal")
+            cargas_label.delete("1.0", tk.END)
+            cargas_label.insert("1.0", cargas_text)
+            cargas_label.configure(state="disabled")
+
+        filtro_frame = ct.CTkFrame(main_frame, fg_color="#000000")
+        filtro_frame.pack(fill="x", pady=(0, 5))
+        ct.CTkLabel(filtro_frame, text="Filtrar por archivo:", text_color="#00FFAA").pack(side="left", padx=(0, 8))
+        filtro_entry = ct.CTkEntry(filtro_frame, textvariable=filtro_var, width=200)
+        filtro_entry.pack(side="left")
+        filtro_var.trace_add('write', lambda *args: actualizar_cargas())
+
         # Sección de cargas CLP
         ct.CTkLabel(
             main_frame, text="Cargas CLP del día:", font=("Segoe UI", 16, "bold"), text_color="#00FFAA", fg_color="#000000"
         ).pack(anchor="w", pady=(0, 5))
-        try:
-            query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE fecha_carga::date = CURRENT_DATE ORDER BY fecha_carga DESC"
-            cargas = self.db_manager.execute_query(query_cargas)
-        except Exception as e:
-            cargas = []
-        cargas_text = "Sin cargas hoy."
-        if cargas:
-            cargas_text = "\n".join([
-                f"{c['fecha_carga']}: {c['archivo']} (Usuario: {c['usuario']}, Códigos: {c['codigos_agregados']})" for c in cargas
-            ])
         cargas_label = ct.CTkTextbox(main_frame, width=650, height=60, fg_color="#111111", text_color="#00FFAA", font=("Segoe UI", 12))
-        cargas_label.insert("1.0", cargas_text)
-        cargas_label.configure(state="disabled")
         cargas_label.pack(pady=(0, 15))
+        actualizar_cargas()
 
         # Sección de consultas recientes
         ct.CTkLabel(

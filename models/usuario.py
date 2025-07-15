@@ -124,10 +124,13 @@ class Usuario:
             # No permitir desactivar superadmin
             if usuario == "superadmin":
                 return False
-            data = {"activo": False}
-            condition = {"usuario": usuario}
             
-            self.db.update_one("usuarios", data, condition)
+            # Usar execute_query directamente en lugar de update_one
+            self.db.execute_query(
+                "UPDATE usuarios SET activo = FALSE WHERE usuario = %s",
+                (usuario,),
+                fetch=False
+            )
             return True
             
         except Exception as e:
@@ -149,10 +152,12 @@ class Usuario:
             # Hash de la nueva contraseña
             contraseña_hash = hashlib.sha256(nueva_contraseña.encode()).hexdigest()
             
-            data = {"contraseña": contraseña_hash}
-            condition = {"usuario": usuario}
-            
-            self.db.update_one("usuarios", data, condition)
+            # Usar execute_query directamente en lugar de update_one
+            self.db.execute_query(
+                "UPDATE usuarios SET contraseña = %s WHERE usuario = %s",
+                (contraseña_hash, usuario),
+                fetch=False
+            )
             return True
             
         except Exception as e:

@@ -460,20 +460,23 @@ class CodigoItem:
         return {"procesados": procesados, "nuevos_items": nuevos_items, "nuevos_codigos": nuevos_codigos, "clp_registros": clp_registros}
 
     def registrar_carga_clp(self, archivo: str, usuario: str, codigos_agregados: int, return_id: bool = False):
+        import pandas as pd
+        import datetime
         nombre_archivo = os.path.basename(archivo)
+        fecha_carga = pd.Timestamp.now() if hasattr(pd, 'Timestamp') else datetime.datetime.now()
         try:
             if return_id:
                 return self.db.insert_one("clp_cargas", {
                     "archivo": nombre_archivo,
                     "usuario": usuario,
-                    "fecha_carga": None,
+                    "fecha_carga": fecha_carga,
                     "codigos_agregados": codigos_agregados
                 })
             else:
                 self.db.insert_one("clp_cargas", {
                     "archivo": nombre_archivo,
                     "usuario": usuario,
-                    "fecha_carga": None,
+                    "fecha_carga": fecha_carga,
                     "codigos_agregados": codigos_agregados
                 })
         except Exception as e:

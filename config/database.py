@@ -219,4 +219,38 @@ class DatabaseManager:
             return None
         finally:
             if 'cursor' in locals():
+                cursor.close()
+    
+    def update_one(self, table: str, data: dict, condition: dict) -> bool:
+        """Actualiza un registro en la tabla especificada basado en la condición."""
+        try:
+            if not self.connection or self.connection.closed:
+                if not self.connect():
+                    return False
+            
+            # Construir la consulta UPDATE
+            set_clause = ', '.join([f"{key} = %s" for key in data.keys()])
+            where_clause = ' AND '.join([f"{key} = %s" for key in condition.keys()])
+            
+            query = f"UPDATE {table} SET {set_clause} WHERE {where_clause}"
+            
+            # Preparar los valores
+            values = tuple(list(data.values()) + list(condition.values()))
+            
+            cursor = self.connection.cursor()
+            cursor.execute(query, values)
+            
+            # Verificar si se actualizó algún registro
+            rows_affected = cursor.rowcount
+            self.connection.commit()
+            
+            return rows_affected > 0
+            
+        except Exception as e:
+            self.logger.error(f"Error actualizando en {table}: {str(e)}")
+            if self.connection:
+                self.connection.rollback()
+            return False
+        finally:
+            if 'cursor' in locals():
                 cursor.close() 
