@@ -24,8 +24,8 @@ ct.set_appearance_mode("dark")
 ct.set_default_color_theme("dark-blue")
 
 # Constantes de versión
-#VERSION_ACTUAL = "0.3.0"
-#FECHA_COMPILACION = "2025-01-28"
+VERSION_ACTUAL = "0.3.3"
+FECHA_COMPILACION = "2024-07-10"
 
 # Configuración de logging
 logging.basicConfig(
