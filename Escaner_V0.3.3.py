@@ -45,13 +45,13 @@ from utils.validators import Validators
 print("Default encoding:", sys.getdefaultencoding())
 print("Filesystem encoding:", sys.getfilesystemencoding())
 
-# --- FUNCIÓN UTILITARIA PARA ACTUALIZAR WIDGETS DE FORMA SEGURA ---
+# --- Funcion utilitaria para actualizar widgets de forma segura porque me odio ---
 def safe_configure(widget, **kwargs):
     try:
         if widget and widget.winfo_exists():
             widget.configure(**kwargs)
     except Exception:
-        pass  # El widget ya no existe o la ventana fue destruida
+        pass  
 
 class EscanerApp:
     def __init__(self):
@@ -209,7 +209,7 @@ class EscanerApp:
         from tkinter import ttk, filedialog
         import customtkinter as ct
         import pandas as pd
-        # Crear ventana toplevel
+        # Crear ventana toplevel :)
         top = ct.CTkToplevel(self.master)
         top.title("Historial del día")
         top.geometry("700x700")
@@ -278,7 +278,7 @@ class EscanerApp:
         tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
         for col in columns:
             tree.heading(col, text=col)
-        # Estilo ttk para fondo oscuro y tipo Excel
+        # Estilo ttk para fondo oscuro y tipo Excel porque me gusta mas que el default
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -327,7 +327,7 @@ class EscanerApp:
         capturas_tree = ttk.Treeview(capturas_frame, columns=columns, show="headings", height=8)
         for col in columns:
             capturas_tree.heading(col, text=col)
-        # Estilo ttk para fondo oscuro
+        # Estilo ttk para fondo oscuro, otra vez porque me gusta mas que el default
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -384,7 +384,7 @@ class EscanerApp:
 
         # Botón historial del día
         self.historial_button = ct.CTkButton(
-            parent,
+            main_frame,
             text="Ver Historial del Día",
             font=("Segoe UI", 12, "bold"),
             fg_color="#111111",
@@ -402,7 +402,7 @@ class EscanerApp:
         # Botón solo para admins: Exportar Reporte del Día
         if self.rol == "admin":
             self.exportar_reporte_button = ct.CTkButton(
-                parent,
+                main_frame,
                 text="Exportar Reporte del Día",
                 font=("Segoe UI", 12, "bold"),
                 fg_color="#111111",
@@ -486,7 +486,7 @@ class EscanerApp:
             export_btn.pack(pady=20)
 
         self.exportar_capturas_button = ct.CTkButton(
-            parent,
+            main_frame,
             text="Exportar Capturas del Día",
             font=("Segoe UI", 14, "bold"),
             fg_color="#00FFAA",
@@ -579,7 +579,7 @@ class EscanerApp:
     def buscar_codigo(self):
         import os
         codigo = self.codigo_var.get().strip()
-        # Easter egg: si el usuario escribe 'tetris', lanza el minijuego
+        # Nada que ver aqui, sigue bajando, no hay nada oculto
         if codigo.lower() == 'tetris':
             try:
                 subprocess.Popen(['python', os.path.join('tetris', 'tetris.py')])
@@ -785,7 +785,7 @@ class EscanerApp:
         )
         self.codigo_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
         
-        # Evento para buscar automáticamente el item cuando se
+        # Evento para buscar automáticamente el item por si no funciona el escaner
         self.codigo_captura_entry.bind("<Return>", lambda e: self._buscar_item_automatico())
         
         # Item
@@ -871,7 +871,7 @@ class EscanerApp:
         self.cumple_captura_var.trace_add('write', on_cumple_change)
         on_cumple_change()
 
-        # Botón guardar SIEMPRE al final del frame
+        # Botón guardar al final del frame
         self.guardar_btn = ct.CTkButton(
             motivo_guardar_frame,
             text="Guardar",
@@ -915,7 +915,7 @@ class EscanerApp:
         else:
             self.codigo_model.db.execute_query(
                 "DELETE FROM motivos_no_cumplimiento WHERE item_id = %s", (item_id,), fetch=False)
-        # Guardar en historial de capturas
+        # Guardar en historial de capturas, divividido por usuarios porque me gusta ver el mundo arder
         self.codigo_model.db.execute_query(
             "INSERT INTO capturas (codigo, item, motivo, cumple, usuario, fecha) VALUES (%s, %s, %s, %s, %s, NOW())",
             (codigo, item, motivo, cumple, self.usuario), fetch=False)
@@ -2078,6 +2078,7 @@ class MainWindow:
     
         # Botón historial del día
         self.historial_button = ct.CTkButton(
+            parent,
             text="Ver Historial del Día",
             font=("Segoe UI", 12, "bold"),
             fg_color="#000000",
@@ -2981,7 +2982,7 @@ class MainWindow:
 
         # Botón historial del día
         self.historial_button = ct.CTkButton(
-            parent,
+            main_frame,
             text="Ver Historial del Día",
             font=("Segoe UI", 12, "bold"),
             fg_color="#000000",
@@ -2999,7 +3000,7 @@ class MainWindow:
         # Botón solo para admins: Exportar Reporte del Día
         if self.rol == "admin":
             self.exportar_reporte_button = ct.CTkButton(
-                parent,
+                main_frame,
                 text="Exportar Reporte del Día",
                 font=("Segoe UI", 12, "bold"),
                 fg_color="#000000",
@@ -3083,7 +3084,7 @@ class MainWindow:
             export_btn.pack(pady=20)
 
         self.exportar_capturas_button = ct.CTkButton(
-            parent,
+            main_frame,
             text="Exportar Capturas del Día",
             font=("Segoe UI", 14, "bold"),
             fg_color="#000000",
