@@ -10,9 +10,9 @@ import sys
 
 class DatabaseManager:
     def __init__(self):
-        # Configuración hardcodeada del servidor central
+        # Configuración hardcodeada del servidor central, si, acabo de aprender ese termino
         self.config = {
-            "host": "192.168.1.167",  # IP de tu servidor central
+            "host": "192.168.1.167",  # IP del servidor central
             "port": 5432,
             "user": "postgres",
             "password": "ubuntu",

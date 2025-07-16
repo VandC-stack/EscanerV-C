@@ -69,13 +69,12 @@ class CodigoItem:
             print(f"Error buscando item: {str(e)}")
             return None
     
-    def cargar_desde_excel(self, ruta_contenedor: str, ruta_historico: str) -> Dict:
+    def cargar_desde_excel(self, ruta_contenedor: str) -> Dict:
         """
-        Carga datos desde archivos Excel usando la estructura normalizada correcta
+        Carga datos desde un archivo Excel de contenedor (CLP) usando la estructura normalizada correcta
         
         Args:
             ruta_contenedor: Ruta al archivo de contenedor
-            ruta_historico: Ruta al archivo histórico
             
         Returns:
             Dict: Resultado de la carga
@@ -84,23 +83,6 @@ class CodigoItem:
             # Leer archivo de contenedor
             df_contenedor = pd.read_excel(ruta_contenedor, sheet_name=0, dtype=str)
             
-            # Leer archivo histórico
-            df_historico = pd.read_excel(ruta_historico, sheet_name=0, dtype=str)
-            
-            # Crear diccionario de resultados del histórico
-            historico_dict = {}
-            for idx, row in df_historico.iterrows():
-                item = self.limpiar_item_code(row.iloc[0]) if len(row) > 0 else ""
-                valor_raw = row.iloc[1] if len(row) > 1 else ""
-                resultado = str(valor_raw).strip() if pd.notnull(valor_raw) else ""
-                
-                if resultado.strip().lower() in ["nan", "none", ""]:
-                    resultado = ""
-                
-                if item and item.lower() != "item":
-                    historico_dict[item] = resultado
-            
-            # Procesar datos del contenedor
             registros_procesados = 0
             items_insertados = 0
             codigos_insertados = 0
@@ -109,7 +91,7 @@ class CodigoItem:
                 item_code = self.limpiar_item_code(fila.iloc[0]) if len(fila) > 0 else ""
                 codigo_barras = str(fila.iloc[5]).strip() if len(fila) > 5 else ""
                 
-                # Forzar código de barras a string sin notación científica
+                # Forzar código de barras a string sin notación científica, te odio microsoft
                 if codigo_barras:
                     try:
                         if 'e' in codigo_barras.lower():
@@ -120,8 +102,8 @@ class CodigoItem:
                 if item_code and codigo_barras:
                     registros_procesados += 1
                     
-                    # Buscar resultado en histórico
-                    resultado = historico_dict.get(item_code, "")
+                    # El resultado se deja vacío o como 'pendiente' según tu lógica
+                    resultado = "pendiente"
                     
                     # 1. Verificar si el item ya existe
                     existing_item = self.db.execute_query(
@@ -132,13 +114,7 @@ class CodigoItem:
                     item_id = None
                     if existing_item:
                         item_id = existing_item[0]['id']
-                        # Actualizar resultado si es diferente
-                        if resultado:
-                            self.db.execute_query(
-                                "UPDATE items SET resultado = %s, fecha_actualizacion = NOW() WHERE id = %s",
-                                (resultado, item_id),
-                                fetch=False
-                            )
+                        # No se actualiza resultado aquí, solo si lo necesitas
                     else:
                         # Insertar nuevo item
                         item_data = {
@@ -169,8 +145,7 @@ class CodigoItem:
             return {
                 "procesados": registros_procesados,
                 "items_insertados": items_insertados,
-                "codigos_insertados": codigos_insertados,
-                "historico_items": len(historico_dict)
+                "codigos_insertados": codigos_insertados
             }
             
         except Exception as e:
@@ -179,7 +154,6 @@ class CodigoItem:
                 "procesados": 0,
                 "items_insertados": 0,
                 "codigos_insertados": 0,
-                "historico_items": 0,
                 "error": str(e)
             }
     
@@ -451,7 +425,6 @@ class CodigoItem:
                         if not res:
                             self.db.insert_one("codigos_barras", {"codigo_barras": codigo_barras, "item_id": item_id})
                             nuevos_codigos += 1
-                            codigos_agregados += 1
                         # Registrar detalle de carga
                         self.db.insert_one("clp_carga_detalle", {"clp_carga_id": clp_carga_id, "codigo_barras": codigo_barras, "item_id": item_id})
             # Actualizar la cantidad de códigos agregados en la carga
