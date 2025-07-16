@@ -289,7 +289,7 @@ class Captura:
             resultado: Resultado de la consulta
         """
         try:
-            # Sugerencia: la tabla 'consultas' debe tener los campos: id, usuario, codigo_barras, item_id, resultado, fecha_hora
+            # la tabla 'consultas' debe tener los campos: id, usuario, codigo_barras, item_id, resultado, fecha_hora
             query = """
                 INSERT INTO consultas (usuario, codigo_barras, item_id, resultado, fecha_hora)
                 VALUES (%s, %s, %s, %s, NOW())
