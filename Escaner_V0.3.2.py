@@ -15,7 +15,7 @@ import hashlib
 import json
 
 try:
-    from tkcalendar import DateEntry 
+    from tkcalendar import DateEntry
 except ImportError:
     DateEntry = None
 
@@ -63,57 +63,57 @@ class EscanerApp:
         self.root.title("Escáner V&C v0.3.2")
         self.root.geometry("1000x800")
         self.root.resizable(True, True)
-        
+
         # Inicializar componentes
         self.db_manager = None
         self.logger = None
         self.usuario_model = None
         self.codigo_model = None
         self.captura_model = None
-        
+
         # Variables de estado
         self.usuario_actual = None
         self.rol_actual = None
         self.config_data = {}
-        
+
         # Inicializar aplicación
         self.inicializar_aplicacion()
-    
+
     def inicializar_aplicacion(self):
         """Inicializa todos los componentes de la aplicación"""
         try:
             # Inicializar base de datos
             self.db_manager = DatabaseManager()
-            
+
             # Intentar arreglar problemas de codificación
             try:
                 if not self.db_manager.fix_encoding_issues():
                     print("Advertencia: No se pudieron arreglar problemas de codificación")
             except Exception as encoding_error:
                     print(f"Error arreglando codificación: {str(encoding_error)}")
-            
+
             # Crear tablas si no existen
             self.db_manager.create_tables()
-            
+
             # Insertar datos por defecto (incluye usuario admin)
             self.db_manager.insert_default_data()
-            
+
             # Inicializar logger
             self.logger = AppLogger("EscanerApp")
-            
+
             # Inicializar modelos
             self.usuario_model = Usuario(self.db_manager)
             self.codigo_model = CodigoItem(self.db_manager)
             self.captura_model = Captura(self.db_manager)
-            
+
             # Cargar configuración
             self.cargar_configuracion()
-            
+
             # Mostrar ventana de login
             self.mostrar_login()
-            
+
             self.logger.info("Aplicación inicializada correctamente")
-            
+
         except Exception as e:
             # Manejar el caso donde el logger no está inicializado
             try:
@@ -123,27 +123,27 @@ class EscanerApp:
                     print(f"Error inicializando aplicación: {str(e)}")
             except:
                 print(f"Error inicializando aplicación: {str(e)}")
-            
+
             try:
                 messagebox.showerror("Error", f"Error al inicializar la aplicación: {str(e)}")
             except:
                 print(f"Error al inicializar la aplicación: {str(e)}")
-            
+
             try:
                 self.root.destroy()
             except:
                 pass
-    
+
     def cargar_configuracion(self):
         """Carga la configuración desde la base de datos"""
         try:
             result = self.db_manager.execute_query(
                 "SELECT clave, valor FROM configuracion"
             )
-            
+
             for row in result:
                 self.config_data[row['clave']] = row['valor']
-                
+
         except Exception as e:
             try:
                 if hasattr(self, 'logger') and self.logger:
@@ -152,36 +152,36 @@ class EscanerApp:
                     print(f"Error cargando configuración: {str(e)}")
             except:
                 print(f"Error cargando configuración: {str(e)}")
-    
+
     def mostrar_login(self):
         """Muestra la ventana de login"""
         for widget in self.root.winfo_children():
             widget.destroy()
-        
+
         self.login_window = LoginWindow(self.root, self.usuario_model, self.logger, self.on_login_success)
-    
+
     def on_login_success(self, usuario: str, rol: str):
         """Callback cuando el login es exitoso"""
         self.usuario_actual = usuario
         self.rol_actual = rol
-        
+
         try:
             self.logger.log_user_action(usuario, "Login exitoso")
         except Exception as e:
             print(f"Error registrando login: {str(e)}")
-        
+
         # Mostrar ventana principal
         self.mostrar_ventana_principal()
-    
+
     def mostrar_ventana_principal(self):
         """Muestra la ventana principal de la aplicación"""
         try:
             for widget in self.root.winfo_children():
                 widget.destroy()
-            
+
             self.main_window = MainWindow(
-                self.root, 
-                self.usuario_actual, 
+                self.root,
+                self.usuario_actual,
                 self.rol_actual,
                 self.codigo_model,
                 self.captura_model,
@@ -198,19 +198,19 @@ class EscanerApp:
                     print(f"Error mostrando ventana principal: {str(e)}")
             except:
                 print(f"Error mostrando ventana principal: {str(e)}")
-            
+
             try:
                 messagebox.showerror("Error", f"Error al mostrar la ventana principal: {str(e)}")
             except:
                 print(f"Error al mostrar la ventana principal: {str(e)}")
-    
+
     def ejecutar(self):
         """Ejecuta la aplicación"""
         self.root.mainloop()
-    
+
     def mostrar_historial_cargas_y_consultas(self):
         diseño = cargar_diseño("theme/claseEscaner.json")
-        
+
         top = ct.CTkToplevel(self.root)
         top.title(diseño["ventana"]["title"])
         top.geometry(diseño["ventana"]["geometry"])
@@ -247,7 +247,7 @@ class EscanerApp:
                 f"{c['fecha_carga']}: {c['archivo']} (Usuario: {c['usuario']}, Códigos: {c['codigos_agregados']})"
                 for c in cargas
             ])
-        
+
         textbox_cfg = diseño["textboxes"][0]
         cargas_label = ct.CTkTextbox(
             main_frame,
@@ -293,7 +293,7 @@ class EscanerApp:
             )
             tag = "evenrow" if i % 2 == 0 else "oddrow"
             tree.insert("", "end", values=values, tags=(tag,))
-        
+
         tree.tag_configure("evenrow", background=diseño["table"]["style"]["evenrow"])
         tree.tag_configure("oddrow", background=diseño["table"]["style"]["oddrow"])
 
@@ -302,10 +302,14 @@ class EscanerApp:
         tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
+        # Frame para botones (debajo de la tabla)
+        frame_botones = ct.CTkFrame(main_frame, fg_color="transparent")
+        frame_botones.pack(fill="x", pady=(10, 20))
+
         # Botón cerrar
         btn_cfg = diseño["boton_cerrar"]
         cerrar_btn = ct.CTkButton(
-            main_frame,
+            frame_botones,
             text=btn_cfg["text"],
             font=tuple(btn_cfg["font"]),
             fg_color=btn_cfg["fg_color"],
@@ -324,14 +328,14 @@ class LoginWindow:
         self.logger = logger
         self.on_success = on_success
         self.attempts_left = 3
-        
+
         self.crear_interfaz()
-    
+
     def crear_interfaz(self):
         """Crea la interfaz de login desde JSON"""
         diseño = cargar_diseño("theme/claseLogin.json")
 
-        # Frame principal blanco
+        # Frame principal (fondo blanco)
         self.frame = ct.CTkFrame(self.master, fg_color=diseño["frame"]["fg_color"])
         self.frame.pack(
             fill=diseño["frame"]["fill"],
@@ -340,7 +344,7 @@ class LoginWindow:
             pady=diseño["frame"]["pady"]
         )
 
-        # Título centrado arriba
+        # Título centrado en la parte superior
         self.label_title = ct.CTkLabel(
             self.frame,
             text=diseño["titulo"]["text"],
@@ -349,19 +353,34 @@ class LoginWindow:
         )
         self.label_title.pack(pady=tuple(diseño["titulo"]["pady"]))
 
-        # Caja amarilla que contiene inputs y botón
+        # Caja amarilla centrada
         self.form_box = ct.CTkFrame(
             self.frame,
             fg_color=diseño["form_box"]["fg_color"],
             corner_radius=diseño["form_box"]["corner_radius"]
         )
-        self.form_box.pack(padx=diseño["form_box"]["padx"], pady=diseño["form_box"]["pady"])
+        self.form_box.pack(
+            padx=diseño["form_box"]["padx"],
+            pady=diseño["form_box"]["pady"]
+        )
+        self.form_box.grid_propagate(False)
+        self.form_box.configure(
+            width=diseño["entry"]["width"] + diseño["form_box"]["internal_padx"],
+            height=(diseño["entry"]["height"] * 3) + diseño["form_box"]["internal_pady"]
+        )
 
-        # Variables de entrada
         self.user_var = StringVar()
         self.pass_var = StringVar()
 
-        # Campo de usuario
+        # Usuario label
+        self.label_user = ct.CTkLabel(
+            self.form_box,
+            text=diseño["labels"][0]["text"],
+            text_color=diseño["labels"][0]["text_color"]
+        )
+        self.label_user.pack(anchor=diseño["labels"][0]["anchor"])
+
+        # Entrada de usuario
         self.entry_user = ct.CTkEntry(
             self.form_box,
             textvariable=self.user_var,
@@ -372,13 +391,28 @@ class LoginWindow:
             border_width=diseño["entry"]["border_width"],
             corner_radius=diseño["entry"]["corner_radius"],
             text_color=diseño["entry"]["text_color"],
-            placeholder_text="Usuario"
+            placeholder_text="👤 Ingresa tu usuario"
         )
         self.entry_user.pack(pady=tuple(diseño["entry_pady"]))
 
-        # Campo de contraseña
-        self.entry_pass = ct.CTkEntry(
+        # Contraseña label
+        self.label_pass = ct.CTkLabel(
             self.form_box,
+            text=diseño["labels"][1]["text"],
+            text_color=diseño["labels"][1]["text_color"]
+        )
+        self.label_pass.pack(anchor=diseño["labels"][1]["anchor"])
+
+        # Frame contenedor de la contraseña + botón
+        self.pass_row = ct.CTkFrame(
+            self.form_box,
+            fg_color=diseño["pass_row"]["fg_color"]
+        )
+        self.pass_row.pack(fill="x", pady=tuple(diseño["entry_pady"]))
+
+        # Entrada de contraseña
+        self.entry_pass = ct.CTkEntry(
+            self.pass_row,
             textvariable=self.pass_var,
             show="*",
             width=diseño["entry"]["width"],
@@ -388,9 +422,9 @@ class LoginWindow:
             border_width=diseño["entry"]["border_width"],
             corner_radius=diseño["entry"]["corner_radius"],
             text_color=diseño["entry"]["text_color"],
-            placeholder_text="Contraseña"
+            placeholder_text="🔒 Ingresa tu contraseña"
         )
-        self.entry_pass.pack(pady=tuple(diseño["entry_pady"]))
+        self.entry_pass.pack(side="left", fill="x", expand=True)
 
         # Botón de login
         self.login_button = ct.CTkButton(
@@ -409,7 +443,7 @@ class LoginWindow:
         )
         self.login_button.pack(pady=tuple(diseño["login_button"]["pady"]))
 
-        # Etiqueta de error (oculta al inicio)
+        # Mensaje de error
         self.error_label = ct.CTkLabel(
             self.form_box,
             text=diseño["error_label"]["text"],
@@ -418,7 +452,7 @@ class LoginWindow:
         )
         self.error_label.pack(pady=tuple(diseño["error_label"]["pady"]))
 
-        # Eventos para usar Enter
+        # Eventos
         self.entry_user.bind("<Return>", lambda e: self.entry_pass.focus_set())
         self.entry_pass.bind("<Return>", lambda e: self.try_login())
         self.entry_user.focus_set()
@@ -427,31 +461,31 @@ class LoginWindow:
         """Intenta hacer login"""
         usuario = self.user_var.get().strip()
         contrasena = self.pass_var.get().strip()
-        
+
         # Validar entrada
         if not usuario or not contrasena:
             self.error_label.configure(text="Ingrese usuario y contraseña.")
             return
-        
+
         # Validar formato
         es_valido_usuario, _ = Validators.validar_usuario(usuario)
         es_valido_pass, _ = Validators.validar_contraseña(contrasena)
-        
+
         if not es_valido_usuario or not es_valido_pass:
             self.error_label.configure(text="Formato de usuario o contraseña inválido.")
             return
-        
+
         # Deshabilitar botón durante verificación
         self.login_button.configure(state="disabled", text="Verificando...")
-        
+
         # Ejecutar verificación en hilo separado
         threading.Thread(target=self._verificar_credenciales, args=(usuario, contrasena), daemon=True).start()
-    
+
     def _verificar_credenciales(self, usuario, contrasena):
         """Verifica las credenciales en la base de datos"""
         try:
             resultado = self.usuario_model.autenticar_usuario(usuario, contrasena)
-            
+
             if resultado:
                 self.master.after(0, lambda: self._login_exitoso(usuario, resultado['rol']))
             else:
@@ -460,34 +494,34 @@ class LoginWindow:
                     self.master.after(0, lambda: self._mostrar_error_intentos())
                 else:
                     self.master.after(0, lambda: self._bloquear_login())
-                    
+
         except Exception as e:
             self.logger.error(f"Error en autenticación: {str(e)}")
             self.master.after(0, lambda error=str(e): self._mostrar_error_conexion(error))
         finally:
             self.master.after(0, lambda: self._restaurar_boton())
-    
+
     def _login_exitoso(self, usuario, rol):
         """Maneja el login exitoso"""
         self.on_success(usuario, rol)
-    
+
     def _mostrar_error_intentos(self):
         """Muestra error con intentos restantes"""
         self.error_label.configure(
             text=f"Usuario o contraseña incorrectos. Intentos restantes: {self.attempts_left}"
         )
-    
+
     def _bloquear_login(self):
         """Bloquea el login por demasiados intentos"""
         self.error_label.configure(
             text="Demasiados intentos fallidos. Reinicie la aplicación."
         )
         self.login_button.configure(state="disabled", text="Bloqueado")
-    
+
     def _mostrar_error_conexion(self, error):
         """Muestra error de conexión"""
         self.error_label.configure(text=f"Error de conexión: {error}")
-    
+
     def _restaurar_boton(self):
         """Restaura el botón de login"""
         try:
@@ -507,7 +541,7 @@ class MainWindow:
         self.config_data = config_data
         self.usuario_model = usuario_model
         self.db_manager = db_manager
-        
+
         try:
             self.crear_interfaz()
             if self.rol != "superadmin":
@@ -520,12 +554,12 @@ class MainWindow:
                     print(f"Error creando interfaz principal: {str(e)}")
             except:
                 print(f"Error creando interfaz principal: {str(e)}")
-            
+
             try:
                 messagebox.showerror("Error", f"Error al crear la interfaz principal: {str(e)}")
             except:
                 print(f"Error al crear la interfaz principal: {str(e)}")
-    
+
     def crear_interfaz(self):
         try:
             diseño = cargar_diseño("theme/main_window.json")
@@ -551,14 +585,14 @@ class MainWindow:
         except Exception as e:
             self.logger.error(f"Error creando interfaz: {str(e)}")
             raise e
-    
+
     def _crear_interfaz_superadmin(self):
         """Crea la interfaz específica para superadmin"""
         try:
             # Pestaña Gestión de Usuarios
             self.tabview.add("Gestión de Usuarios")
             self._configurar_tab_gestion_usuarios(self.tabview.tab("Gestión de Usuarios"))
-            
+
             # Pestaña Base de Datos
             self.tabview.add("Base de Datos")
             self._configurar_tab_base_datos(self.tabview.tab("Base de Datos"))
@@ -571,23 +605,23 @@ class MainWindow:
             except:
                 print(f"Error creando interfaz superadmin: {str(e)}")
             raise e
-    
+
     def _crear_interfaz_normal(self):
         """Crea la interfaz normal para otros usuarios"""
         # Pestaña Escáner (todos los usuarios)
         self.tabview.add("Escáner")
         self._configurar_tab_escaner(self.tabview.tab("Escáner"))
-        
+
         # Pestaña Captura (solo rol captura y admin)
         if self.rol in ["captura", "admin"]:
             self.tabview.add("Captura de Datos")
             self._configurar_tab_captura(self.tabview.tab("Captura de Datos"))
-        
+
         # Pestaña Configuración (solo admin)
         if self.rol == "admin":
             self.tabview.add("Configuración")
             self._configurar_tab_configuracion(self.tabview.tab("Configuración"))
-        
+
     def _configurar_tab_gestion_usuarios(self, parent):
         diseño = cargar_diseño("theme/main_window.json")
         gestion_conf = diseño["gestion_usuarios"]
@@ -621,16 +655,16 @@ class MainWindow:
 
         self._crear_formulario_usuario(content_frame, side="left")
         self._crear_lista_usuarios(content_frame, side="right")
-    
+
     def _configurar_tab_base_datos(self, parent):
         """Configura la pestaña de base de datos para superadmin"""
         try:
             main_frame = ct.CTkFrame(parent, fg_color="#000000")
             main_frame.pack(fill="both", expand=True, padx=40, pady=40)
             ct.CTkLabel(
-                main_frame, 
-                text="Panel de Administración - Base de Datos", 
-                font=("Segoe UI", 18, "bold"), 
+                main_frame,
+                text="Panel de Administración - Base de Datos",
+                font=("Segoe UI", 18, "bold"),
                 text_color="#00FFAA"
             ).pack(pady=(0, 20))
             # Tabs para cada tabla
@@ -672,11 +706,11 @@ class MainWindow:
             except:
                 print(f"Error configurando tab base de datos: {str(e)}")
             raise e
-    
+
     def _configurar_tab_revision_capturas(self, parent):
         from tkinter import ttk, messagebox
         from models.captura import Captura
-        
+
         diseño = cargar_diseño("theme/revision_capturas.json")
 
         # Frame scrollable principal
@@ -700,7 +734,7 @@ class MainWindow:
 
         captura_model = Captura(self.db_manager)
         capturas = captura_model.obtener_todas_capturas()
-        
+
         if not capturas:
             empty_conf = diseño["label_empty"]
             ct.CTkLabel(
@@ -710,7 +744,7 @@ class MainWindow:
                 text_color=empty_conf["text_color"]
             ).pack(**empty_conf["pack"])
             return
-        
+
         columns = list(capturas[0].keys())
 
         # Configurar estilos ttk para Treeview
@@ -777,7 +811,7 @@ class MainWindow:
             for item in seleccion:
                 tree.delete(item)
             messagebox.showinfo(
-                "Éxito", 
+                "Éxito",
                 f"Capturas aceptadas y movidas a codigos_items. Procesadas: {resultado['procesados']}, Actualizadas: {resultado['actualizados']}"
             )
             refrescar_codigos_items_tabla()
@@ -821,7 +855,7 @@ class MainWindow:
             corner_radius=denegar_btn_conf["corner_radius"]
         )
         denegar_btn.pack(**denegar_btn_conf["pack"])
-    
+
     def _mostrar_tabla_sql(self, parent, nombre_tabla):
         from tkinter import ttk
         # Limpiar widgets previos
@@ -894,22 +928,22 @@ class MainWindow:
                     if not filtro or filtro in codigo or filtro in item_val:
                         tree.insert("", "end", values=[row[col] for col in columns])
             search_var.trace_add('write', filtrar)
-    
+
     def _configurar_tab_escaner(self, parent):
         diseño = cargar_diseño("theme/tab_escaner.json")
-        
+
         # Frame principal
         mf_conf = diseño["main_frame"]
         main_frame = ct.CTkFrame(parent, fg_color=mf_conf["fg_color"])
         main_frame.pack(**mf_conf["pack"])
-        
+
         # Columna izquierda
         lc_conf = diseño["left_col"]
         left_col = ct.CTkFrame(main_frame, fg_color=lc_conf["fg_color"])
         left_col.pack(**lc_conf["pack"])
-        
+
         self._crear_header(left_col)
-        
+
         ce_conf = diseño["codigo_entry"]
         self.codigo_var = ct.StringVar()
         self.codigo_entry = ct.CTkEntry(
@@ -927,60 +961,71 @@ class MainWindow:
         )
         self.codigo_entry.pack(**ce_conf["pack"])
         self.codigo_entry.bind("<Return>", lambda e: self.buscar_codigo())
-        
+
         self._crear_botones_escaner(left_col)
         self._crear_resultados_escaner(left_col)
         
+
         rc_conf = diseño["right_col"]
         right_col = ct.CTkFrame(main_frame, fg_color=rc_conf["fg_color"])
         right_col.pack(**rc_conf["pack"])
-        
+
         self._crear_estadisticas_escaner(right_col)
-    
+
+        self._crear_botones_adicionales(right_col)
+
     def _crear_header(self, parent):
-        logo_path = os.path.join(os.path.dirname(__file__), 'resources', 'Logo (2).png')
-        if os.path.exists(logo_path):
+        diseño = cargar_diseño("theme/header.json")
+
+        logo_conf = diseño["logo"]
+        logo_path = os.path.join(os.path.dirname(__file__), logo_conf["path"])
+
+        if logo_conf["enabled"] and os.path.exists(logo_path):
             try:
                 logo_img = ct.CTkImage(
                     light_image=Image.open(logo_path),
                     dark_image=Image.open(logo_path),
-                    size=(90, 90)
+                    size=tuple(logo_conf["size"])
                 )
-                logo_label = ct.CTkLabel(parent, image=logo_img, text="", fg_color="#000000")
-                logo_label.pack(pady=(10, 10))
+                logo_label = ct.CTkLabel(
+                    parent,
+                    image=logo_img,
+                    text="",
+                    fg_color=logo_conf["fg_color"]
+                )
+                logo_label.pack(pady=tuple(logo_conf["pady"]))
             except Exception as e:
                 self.logger.error(f"Error cargando logo: {str(e)}")
-                ct.CTkLabel(
-                    parent,
-                    text="V&C",
-                    font=("Segoe UI", 28, "bold"),
-                    text_color="#00FFAA",
-                    fg_color="#000000"
-                ).pack(pady=(10, 10))
+                self._crear_logo_fallback(parent, logo_conf)
         else:
-            ct.CTkLabel(
-                parent,
-                text="V&C",
-                font=("Segoe UI", 28, "bold"),
-                text_color="#00FFAA",
-                fg_color="#000000"
-            ).pack(pady=(10, 10))
+            self._crear_logo_fallback(parent, logo_conf)
 
+        titulo_conf = diseño["titulo"]
         ct.CTkLabel(
             parent,
-            text="Escáner V&C",
-            font=("Segoe UI", 22, "bold"),
-            text_color="#00FFAA",
-            fg_color="#000000"
-        ).pack(pady=(0, 8))
-    
+            text=titulo_conf["text"],
+            font=tuple(titulo_conf["font"]),
+            text_color=titulo_conf["text_color"],
+            fg_color=titulo_conf["fg_color"]
+        ).pack(pady=tuple(titulo_conf["pady"]))
+
+    def _crear_logo_fallback(self, parent, logo_conf):
+        """Crea el texto alternativo cuando falla la imagen del logo"""
+        ct.CTkLabel(
+            parent,
+            text=logo_conf["fallback_text"],
+            font=tuple(logo_conf["fallback_font"]),
+            text_color=logo_conf["fallback_color"],
+            fg_color=logo_conf["fg_color"]
+        ).pack(pady=tuple(logo_conf["pady"]))
+
     def _crear_botones_escaner(self, parent):
         diseño = cargar_diseño("theme/tab_escaner.json")
         btn_conf = diseño["search_button"]
-        
-        botones_frame = ct.CTkFrame(parent, fg_color="#000000")
-        botones_frame.pack(pady=(0, 10))
-        
+
+        botones_frame = ct.CTkFrame(parent, fg_color=btn_conf["frame_fg_color"])
+        botones_frame.pack(**btn_conf["frame_pack"])
+
         self.search_button = ct.CTkButton(
             botones_frame,
             text=btn_conf["text"],
@@ -996,11 +1041,11 @@ class MainWindow:
             command=self.buscar_codigo
         )
         self.search_button.pack(**btn_conf["pack"])
-    
+
     def _crear_resultados_escaner(self, parent):
         diseño = cargar_diseño("theme/tab_escaner.json")
         lbl_conf = diseño["labels_resultado"]
-        
+
         self.clave_valor = ct.CTkLabel(
             parent,
             text="ITEM: ",
@@ -1009,7 +1054,7 @@ class MainWindow:
             fg_color=lbl_conf["fg_color"]
         )
         self.clave_valor.pack(pady=tuple(lbl_conf["padys"]["clave"]))
-        
+
         self.resultado_valor = ct.CTkLabel(
             parent,
             text="RESULTADO: ",
@@ -1019,7 +1064,7 @@ class MainWindow:
             wraplength=lbl_conf["wraplength"]
         )
         self.resultado_valor.pack(pady=tuple(lbl_conf["padys"]["resultado"]))
-        
+
         self.nom_valor = ct.CTkLabel(
             parent,
             text="NOM: ",
@@ -1102,7 +1147,7 @@ class MainWindow:
                 command=self.exportar_reporte_dia
             )
             self.exportar_reporte_button.pack(**export_conf["pack"])
-    
+
     def exportar_reporte_dia(self):
         import tkinter as tk
         from tkinter import messagebox, filedialog
@@ -1181,23 +1226,23 @@ class MainWindow:
             except Exception as e:
                 messagebox.showerror("Error", f"Error exportando reporte: {str(e)}")
 
-        btn_conf = diseño["button"]
-        export_btn = tk.Button(
-            top,
-            text=btn_conf["text"],
-            font=tuple(btn_conf["font"]),
-            bg=btn_conf["bg"],
-            fg=btn_conf["fg"],
-            activebackground=btn_conf["activebackground"],
-            activeforeground=btn_conf["activeforeground"],
-            relief=btn_conf["relief"],
-            borderwidth=btn_conf["borderwidth"],
-            width=btn_conf["width"],
-            height=btn_conf["height"],
-            command=exportar
-        )
-        export_btn.pack(**btn_conf["pack"])
-   
+            btn_conf = diseño["button"]
+            export_btn = tk.Button(
+                top,
+                text=btn_conf["text"],
+                font=tuple(btn_conf["font"]),
+                bg=btn_conf["bg"],
+                fg=btn_conf["fg"],
+                activebackground=btn_conf["activebackground"],
+                activeforeground=btn_conf["activeforeground"],
+                relief=btn_conf["relief"],
+                borderwidth=btn_conf["borderwidth"],
+                width=btn_conf["width"],
+                height=btn_conf["height"],
+                command=exportar
+            )
+            export_btn.pack(**btn_conf["pack"])
+
     def buscar_codigo(self):
         codigo = self.codigo_var.get().strip()
         es_valido, mensaje = Validators.validar_codigo_barras(codigo)
@@ -1239,25 +1284,69 @@ class MainWindow:
         self.clave_valor.configure(text=f"ITEM: {resultado.get('item', '')}")
         self.resultado_valor.configure(text=f"RESULTADO: {resultado.get('resultado', 'Sin resultado') or 'Sin resultado'}")
         self.nom_valor.configure(text=f"Última actualización: {resultado.get('fecha_actualizacion', '')}")
-    
+
     def _mostrar_no_encontrado(self):
         """Muestra mensaje de no encontrado"""
         self.clave_valor.configure(text="")
         self.resultado_valor.configure(text="Código no encontrado")
         self.nom_valor.configure(text="")
-    
+
     def _mostrar_error_busqueda(self, error):
         """Muestra error en la búsqueda"""
         self.clave_valor.configure(text="")
         self.resultado_valor.configure(text=f"Error al buscar: {error}")
         self.nom_valor.configure(text="")
-    
+
     def _restaurar_boton_busqueda(self):
         """Restaura el botón de búsqueda"""
         self.search_button.configure(text="Buscar", state="normal")
         self.codigo_var.set("")
         self.codigo_entry.focus_set()
-    
+
+    def _crear_estadisticas_escaner(self, parent):
+        diseño = cargar_diseño("theme/tab_escaner.json")
+        stats_conf = diseño["estadisticas_labels"]
+
+        # Total de códigos
+        self.total_codigos_label = ct.CTkLabel(
+            parent,
+            text="Total de códigos: 0",
+            font=tuple(stats_conf["font"]),
+            text_color=stats_conf["text_color"],
+            fg_color=stats_conf["fg_color"]
+        )
+        self.total_codigos_label.pack(pady=stats_conf["pady"])
+
+        # Items en total
+        self.con_resultado_label = ct.CTkLabel(
+            parent,
+            text="Items en total: 0",
+            font=tuple(stats_conf["font"]),
+            text_color=stats_conf["text_color"],
+            fg_color=stats_conf["fg_color"]
+        )
+        self.con_resultado_label.pack(pady=stats_conf["pady"])
+
+        # Sin resultado
+        self.sin_resultado_label = ct.CTkLabel(
+            parent,
+            text="Sin resultado: 0",
+            font=tuple(stats_conf["font"]),
+            text_color=stats_conf["text_color"],
+            fg_color=stats_conf["fg_color"]
+        )
+        self.sin_resultado_label.pack(pady=stats_conf["pady"])
+
+        # Última actualización
+        self.ultima_actualizacion_label = ct.CTkLabel(
+            parent,
+            text="Última actualización: Nunca",
+            font=tuple(stats_conf["font"]),
+            text_color=stats_conf["text_color"],
+            fg_color=stats_conf["fg_color"]
+        )
+        self.ultima_actualizacion_label.pack(pady=stats_conf["pady_ultima"])
+
     def cargar_estadisticas(self):
         """Carga las estadísticas de la base de datos"""
         try:
@@ -1278,7 +1367,63 @@ class MainWindow:
             self.con_resultado_label.configure(text="Items en total: 0")
             self.sin_resultado_label.configure(text="Sin resultado: 0")
             self.ultima_actualizacion_label.configure(text="Última actualización: Nunca")
-    
+
+    def _crear_botones_adicionales(self, parent):
+        diseño = cargar_diseño("theme/tab_escaner.json")
+
+        # Contenedor vertical (debajo de estadísticas)
+        botonera_frame = ct.CTkFrame(parent, fg_color="#FFFFFF")
+        botonera_frame.pack(side="top", anchor="ne", pady=(30, 10), padx=10)
+
+        # Botón Cerrar Sesión
+        logout_conf = diseño["logout_button"]
+        self.logout_button = ct.CTkButton(
+            botonera_frame,
+            text=logout_conf["text"],
+            font=tuple(logout_conf["font"]),
+            fg_color=logout_conf["fg_color"],
+            hover_color=logout_conf["hover_color"],
+            text_color=logout_conf["text_color"],
+            width=logout_conf["width"],
+            height=logout_conf["height"],
+            corner_radius=logout_conf["corner_radius"],
+            command=self.cerrar_sesion
+        )
+        self.logout_button.pack(**logout_conf["pack"])
+
+        # Botón Ver Historial
+        historial_conf = diseño["historial_button"]
+        self.historial_button = ct.CTkButton(
+            botonera_frame,
+            text=historial_conf["text"],
+            font=tuple(historial_conf["font"]),
+            fg_color=historial_conf["fg_color"],
+            hover_color=historial_conf["hover_color"],
+            text_color=historial_conf["text_color"],
+            width=historial_conf["width"],
+            height=historial_conf["height"],
+            corner_radius=historial_conf["corner_radius"],
+            command=self.mostrar_historial_cargas_y_consultas
+        )
+        self.historial_button.pack(**historial_conf["pack"])
+
+        # Botón Exportar Reporte
+        exportar_conf = diseño["exportar_reporte_button"]
+        self.exportar_button = ct.CTkButton(
+            botonera_frame,
+            text=exportar_conf["text"],
+            font=tuple(exportar_conf["font"]),
+            fg_color=exportar_conf["fg_color"],
+            hover_color=exportar_conf["hover_color"],
+            text_color=exportar_conf["text_color"],
+            width=exportar_conf["width"],
+            height=exportar_conf["height"],
+            corner_radius=exportar_conf["corner_radius"],
+            command=self.exportar_reporte_dia
+        )
+        self.exportar_button.pack(**exportar_conf["pack"])
+
+
     def actualizar_indice(self):
         es_valido, mensaje = Validators.validar_configuracion_completa(self.config_data)
         if not es_valido:
@@ -1309,7 +1454,7 @@ class MainWindow:
         finally:
             self.master.after(0, lambda: self.update_button.configure(state="normal", text="Actualizar Índice"))
             self.master.after(0, self.cargar_estadisticas)
-    
+
     def _mostrar_resultado_actualizacion(self, resultado):
         """Muestra el resultado de la actualización del índice"""
         try:
@@ -1324,7 +1469,7 @@ class MainWindow:
         except Exception as e:
             self.logger.error(f"Error mostrando resultado: {str(e)}")
             messagebox.showerror("Error", f"Error al actualizar índice: {str(e)}")
-    
+
     def _configurar_tab_captura(self, parent):
         diseño = cargar_diseño("theme/tab_captura.json")
 
@@ -1507,7 +1652,7 @@ class MainWindow:
         item = self.item_captura_var.get().strip()
         motivo = self.motivo_captura_var.get().strip() if self.cumple_captura_var.get() == "NO CUMPLE" else ""
         cumple = self.cumple_captura_var.get().strip()
-        
+
         if not codigo or not item or not cumple:
             messagebox.showwarning("Campos vacíos", "Código, item y cumple son obligatorios")
             return
@@ -1519,7 +1664,7 @@ class MainWindow:
         self.codigo_captura_var.set("")
         self.item_captura_var.set("")
         self.codigo_captura_entry.focus_set()
-    
+
     def _guardar_captura_offline(self, codigo, item, motivo, cumple):
         """Guarda la captura localmente en un archivo JSON por usuario"""
         ruta = f"capturas_pendientes_{self.usuario}.json"
@@ -1542,7 +1687,7 @@ class MainWindow:
                 json.dump(capturas, f, ensure_ascii=False, indent=2)
         except Exception as e:
             self.logger.error(f"Error guardando captura offline: {str(e)}")
-    
+
     def subir_capturas_offline(self):
         """Sube las capturas pendientes del archivo local a la base de datos"""
         import os
@@ -1569,11 +1714,11 @@ class MainWindow:
             self.logger.error(f"Error leyendo capturas offline: {str(e)}")
             messagebox.showerror("Error", f"Error leyendo capturas pendientes: {str(e)}")
         self._actualizar_estado_pendientes()
-    
+
     def _buscar_item_automatico(self):
         """Busca automáticamente el item cuando se ingresa un código de barras"""
         codigo = self.codigo_captura_var.get().strip()
-        
+
         # Solo buscar si el código tiene al menos 8 caracteres (código de barras mínimo)
         if len(codigo) >= 8:
             # Validar formato del código
@@ -1581,14 +1726,14 @@ class MainWindow:
             if es_valido:
                 # Limpiar código
                 codigo_limpio = Validators.limpiar_codigo_barras(codigo)
-                
+
                 # Buscar en hilo separado para no bloquear la interfaz
                 threading.Thread(
-                    target=self._ejecutar_busqueda_automatica, 
-                    args=(codigo_limpio,), 
+                    target=self._ejecutar_busqueda_automatica,
+                    args=(codigo_limpio,),
                     daemon=True
                 ).start()
-    
+
     def _ejecutar_busqueda_automatica(self, codigo):
         """Ejecuta la búsqueda automática del item y resultado"""
         try:
@@ -1601,7 +1746,7 @@ class MainWindow:
                 self.logger.log_user_action(self.usuario, f"Búsqueda automática exitosa: {codigo}")
         except Exception as e:
             self.logger.error(f"Error en búsqueda automática: {str(e)}")
-    
+
     def _actualizar_estado_pendientes(self):
         """Actualiza la visibilidad del botón de subir capturas pendientes"""
         import os
@@ -1613,17 +1758,17 @@ class MainWindow:
                         capturas = json.load(f)
                     num_capturas = len(capturas)
                     self.subir_pendientes_btn.configure(
-                        state="normal", 
+                        state="normal",
                         text=f"Subir capturas pendientes ({num_capturas})"
                     )
                 except Exception:
                     self.subir_pendientes_btn.configure(
-                        state="normal", 
+                        state="normal",
                         text="Subir capturas pendientes"
                     )
             else:
                 self.subir_pendientes_btn.configure(
-                    state="disabled", 
+                    state="disabled",
                     text="No hay capturas pendientes"
                 )
 
@@ -1751,20 +1896,24 @@ class MainWindow:
         tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
+        # Frame para botones (debajo de la tabla)
+        frame_botones = ct.CTkFrame(main_frame, fg_color="transparent")
+        frame_botones.pack(fill="x", pady=(10, 20))
+
         # Botón cerrar
-        btn_conf = diseño["button"]["cerrar"]
+        btn_cfg = diseño["boton_cerrar"]
         cerrar_btn = ct.CTkButton(
-            main_frame,
-            text=btn_conf["text"],
-            command=top.destroy,
-            font=tuple(btn_conf["font"]),
-            fg_color=btn_conf["fg_color"],
-            text_color=btn_conf["text_color"],
-            width=btn_conf["width"],
-            height=btn_conf["height"],
-            corner_radius=btn_conf["corner_radius"]
+            frame_botones,
+            text=btn_cfg["text"],
+            font=tuple(btn_cfg["font"]),
+            fg_color=btn_cfg["fg_color"],
+            text_color=btn_cfg["text_color"],
+            width=btn_cfg["width"],
+            height=btn_cfg["height"],
+            corner_radius=btn_cfg["corner_radius"],
+            command=top.destroy
         )
-        cerrar_btn.pack(pady=btn_conf["pady"])
+        cerrar_btn.pack(**btn_cfg["pack"])
 
     def _configurar_tab_configuracion(self, parent):
         diseño = cargar_diseño("theme/tab_configuracion.json")
@@ -1973,7 +2122,7 @@ class MainWindow:
             width=btn_limpiar["width"],
             height=btn_limpiar["height"]
         ).pack(**btn_limpiar["pack"])
-    
+
     def _crear_lista_usuarios(self, parent, side="right"):
         diseño = cargar_diseño_lista_usuarios("theme/lista_usuarios.json")
 
@@ -2064,17 +2213,17 @@ class MainWindow:
             width=btns["refrescar"]["width"],
             height=btns["refrescar"]["height"]
         ).pack(**btns["refrescar"]["pack"])
-    
+
     def cargar_usuarios(self):
         """Carga los usuarios en la tabla"""
         try:
             # Limpiar tabla
             for item in self.usuarios_tree.get_children():
                 self.usuarios_tree.delete(item)
-            
+
             # Obtener usuarios de la base de datos
             usuarios = self.usuario_model.obtener_todos_usuarios()
-            
+
             # Insertar en la tabla
             for usuario in usuarios:
                 self.usuarios_tree.insert("", "end", values=(
@@ -2083,10 +2232,10 @@ class MainWindow:
                     usuario.get('estado', ''),
                     usuario.get('ultimo_acceso', '')
                 ))
-                
+
         except Exception as e:
             self.logger.error(f"Error cargando usuarios: {str(e)}")
-    
+
     def crear_usuario(self):
         """Crea un nuevo usuario"""
         try:
@@ -2094,23 +2243,23 @@ class MainWindow:
             password = self.password_form_var.get().strip()
             rol = self.rol_form_var.get()
             activo = self.activo_form_var.get()
-            
+
             # Validar campos
             if not usuario or not password:
                 messagebox.showwarning("Campos vacíos", "Usuario y contraseña son obligatorios")
                 return
-            
+
             # Validar formato
             es_valido_usuario, _ = Validators.validar_usuario(usuario)
             es_valido_pass, _ = Validators.validar_contraseña(password)
-            
+
             if not es_valido_usuario or not es_valido_pass:
                 messagebox.showwarning("Formato inválido", "Formato de usuario o contraseña inválido")
                 return
-            
+
             # Crear usuario
             resultado = self.usuario_model.crear_usuario(usuario, password, rol, activo)
-            
+
             if resultado:
                 messagebox.showinfo("Éxito", "Usuario creado correctamente")
                 self.limpiar_formulario_usuario()
@@ -2118,18 +2267,18 @@ class MainWindow:
                 self.logger.log_user_action(self.usuario, f"Usuario creado: {usuario}")
             else:
                 messagebox.showerror("Error", "No se pudo crear el usuario")
-                
+
         except Exception as e:
             self.logger.error(f"Error creando usuario: {str(e)}")
             messagebox.showerror("Error", f"Error al crear usuario: {str(e)}")
-    
+
     def limpiar_formulario_usuario(self):
         """Limpia el formulario de usuario"""
         self.usuario_form_var.set("")
         self.password_form_var.set("")
         self.rol_form_var.set("usuario")
         self.activo_form_var.set("activo")
-    
+
     def on_usuario_select(self, event):
         """Maneja la selección de un usuario en la tabla"""
         selection = self.usuarios_tree.selection()
@@ -2141,21 +2290,21 @@ class MainWindow:
                 self.rol_form_var.set(values[1])      # Rol
                 self.activo_form_var.set(values[2])   # Estado
                 self.password_form_var.set("")        # No mostrar contraseña
-    
+
     def eliminar_usuario(self):
         """Elimina el usuario seleccionado"""
         selection = self.usuarios_tree.selection()
         if not selection:
             messagebox.showwarning("Sin selección", "Selecciona un usuario para eliminar")
             return
-        
+
         item = self.usuarios_tree.item(selection[0])
         usuario = item['values'][0]
-        
+
         if usuario == self.usuario:
             messagebox.showwarning("Error", "No puedes eliminar tu propio usuario")
             return
-        
+
         if messagebox.askyesno("Confirmar", f"¿Estás seguro de eliminar al usuario '{usuario}'?"):
             try:
                 resultado = self.usuario_model.eliminar_usuario(usuario)
@@ -2169,20 +2318,20 @@ class MainWindow:
             except Exception as e:
                 self.logger.error(f"Error eliminando usuario: {str(e)}")
                 messagebox.showerror("Error", f"Error al eliminar usuario: {str(e)}")
-    
+
     def cambiar_estado_usuario(self):
         """Cambia el estado del usuario seleccionado"""
         selection = self.usuarios_tree.selection()
         if not selection:
             messagebox.showwarning("Sin selección", "Selecciona un usuario para cambiar su estado")
             return
-        
+
         item = self.usuarios_tree.item(selection[0])
         usuario = item['values'][0]
         estado_actual = item['values'][2]
-        
+
         nuevo_estado = "inactivo" if estado_actual == "activo" else "activo"
-        
+
         try:
             resultado = self.usuario_model.cambiar_estado_usuario(usuario, nuevo_estado)
             if resultado:
@@ -2207,4 +2356,4 @@ class MainWindow:
 
 if __name__ == "__main__":
     app = EscanerApp()
-    app.ejecutar()    
+    app.ejecutar()

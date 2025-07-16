@@ -1,45 +1,50 @@
 {
   "window": {
-    "title": "Seleccionar día para reporte",
-    "geometry": "400x220",
-    "bg": "#000000"
+    "title": "📅 Seleccionar Fecha para Reporte",
+    "geometry": "400x240",
+    "bg": "#FFFFFF"
   },
   "label": {
-    "text": "Selecciona la fecha:",
+    "text": "📆 Selecciona la fecha:",
     "font": ["Segoe UI", 16, "bold"],
-    "fg": "#00FFAA",
-    "bg": "#000000",
-    "pack": {"pady": 20}
+    "fg": "#2C3E50",
+    "bg": "#FFFFFF",
+    "pack": { "pady": [30, 10] }
   },
   "calendar": {
     "width": 18,
-    "background": "#111111",
-    "foreground": "#00FFAA",
-    "borderwidth": 2,
+    "background": "#F9F9F9",
+    "foreground": "#2C3E50",
+    "borderwidth": 1,
     "date_pattern": "yyyy-mm-dd",
-    "font": ["Segoe UI", 14],
-    "headersbackground": "#222222",
-    "headersforeground": "#00FFAA",
-    "pack": {"pady": 10}
+    "font": ["Segoe UI", 13],
+    "headersbackground": "#ECD925",
+    "headersforeground": "#000000",
+    "selectbackground": "#ECD925",
+    "selectforeground": "#000000",
+    "pack": { "pady": [0, 10] }
   },
   "label_warning": {
-    "text": "Instala tkcalendar para selector visual",
-    "fg": "red",
-    "bg": "#000000",
-    "font": ["Segoe UI", 12, "bold"],
-    "pack": {"pady": 10}
+    "text": "⚠️ Instala tkcalendar para el selector visual",
+    "fg": "#E74C3C",
+    "bg": "#FFFFFF",
+    "font": ["Segoe UI", 11],
+    "pack": { "pady": [8, 4] }
   },
   "button": {
-    "text": "Exportar",
-    "font": ["Segoe UI", 14, "bold"],
-    "bg": "#00FFAA",
-    "fg": "#000000",
-    "activebackground": "#00FFAA",
-    "activeforeground": "#000000",
-    "relief": "flat",
-    "borderwidth": 0,
-    "width": 16,
-    "height": 2,
-    "pack": {"pady": 20}
+      "text": "📤 Exportar",
+      "font": ["Arial", 12, "bold"],
+      "bg": "#4CAF50",
+      "fg": "#FFFFFF",
+      "activebackground": "#45A049",
+      "activeforeground": "#FFFFFF",
+      "relief": "raised",
+      "borderwidth": 2,
+      "width": 15,
+      "height": 2,
+      "pack": {
+        "side": "bottom",
+        "pady": 10
+      }
   }
 }

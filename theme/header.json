@@ -1,0 +1,19 @@
+{
+  "logo": {
+    "enabled": true,
+    "path": "resources/Logo (2).png",
+    "size": [90, 90],
+    "fallback_text": "V&C",
+    "fallback_font": ["Segoe UI", 28, "bold"],
+    "fallback_color": "#ecd925",
+    "fg_color": "#FFFFFF",
+    "pady": [10, 10]
+  },
+  "titulo": {
+    "text": "Escáner V&C",
+    "font": ["Segoe UI", 22, "bold"],
+    "text_color": "#ecd925",
+    "fg_color": "#FFFFFF",
+    "pady": [0, 8]
+  }
+}

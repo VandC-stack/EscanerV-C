@@ -1,57 +1,69 @@
- {
+{
   "frame": {
-    "fg_color": "#FFFFFF",
+    "fg_color": "#F5F6FA",
     "fill": "both",
     "expand": true,
     "padx": 0,
     "pady": 0
   },
   "titulo": {
-    "text": "INICIAR SESION",
-    "font": ["Segoe UI", 16, "bold"],
-    "text_color": "#1A1A1A",
-    "pady": [150, 10]
+    "text": "🔐 Iniciar Sesión",
+    "font": ["Segoe UI", 20, "bold"],
+    "text_color": "#2C3E50",
+    "pady": [150, 20]
   },
   "form_box": {
     "fg_color": "#ECD925",
-    "corner_radius": 10,
-    "padx": 0,          
-    "pady": 0,             
-    "internal_padx": 200,  
-    "internal_pady": 200    
+    "corner_radius": 16,
+    "padx": 0,
+    "pady": 0,
+    "internal_padx": 60,
+    "internal_pady": 60
   },
+  "labels": [
+    {
+      "text": "👤 Usuario",
+      "anchor": "center",
+      "text_color": "#2C3E50"
+    },
+    {
+      "text": "🔒 Contraseña",
+      "anchor": "center",
+      "text_color": "#2C3E50"
+    }
+  ],
   "entry": {
-    "width": 300,
-    "height": 36,
-    "fg_color": "#FFFFFF",
-    "border_color": "#CCCCCC",
-    "border_width": 0,
-    "corner_radius": 40,
-    "text_color": "#000000",
-    "placeholder_text_color": "#FF0000"
+    "width": 280,
+    "height": 38,
+    "fg_color": "#F0F0F0",
+    "border_color": "#BDC3C7",
+    "border_width": 1,
+    "corner_radius": 12,
+    "text_color": "#2C3E50",
+    "placeholder_text_color": "#282828"
   },
-  "entry_pady": [40, 40],
+  "entry_pady": [16, 16],
   "pass_row": {
-    "fg_color": "#ECD820"
+    "fg_color": "#ECD925"
   },
   "login_button": {
-    "text": "Iniciar",
-    "width": 100,
-    "height": 36,
-    "fg_color": "#222222",
-    "text_color": "#FFFFFF",
-    "hover_color": "#333333",
-    "border_color": "#222222",
+    "text": "Ingresar",
+    "width": 150,
+    "height": 40,
+    "fg_color": "#282828",
+    "text_color": "#d8d8d8",
+    "hover_color": "#282828",
+    "border_color": "#282828",
     "border_width": 0,
-    "corner_radius": 8,
-    "font": ["Segoe UI", 12, "bold"],
+    "corner_radius": 10,
+    "font": ["Segoe UI", 13, "bold"],
     "padx": [0, 0],
-    "pady": [12, 0]
+    "pady": [20, 10]
   },
   "error_label": {
     "text": "",
-    "text_color": "#FF3333",
-    "font": ["Segoe UI", 11, "bold"],
-    "pady": [12, 0]
+    "text_color": "#E74C3C",
+    "font": ["Segoe UI", 10, "bold"],
+    "pady": [10, 0]
   }
 }
