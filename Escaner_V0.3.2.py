@@ -1151,6 +1151,8 @@ class MainWindow:
     def exportar_reporte_dia(self):
         import tkinter as tk
         from tkinter import messagebox, filedialog
+        from tkcalendar import DateEntry
+        import pandas as pd
 
         diseño = cargar_diseño("theme/exportar_reporte_dia.json")
 
@@ -1182,7 +1184,9 @@ class MainWindow:
                 date_pattern=cal_conf["date_pattern"],
                 font=tuple(cal_conf["font"]),
                 headersbackground=cal_conf["headersbackground"],
-                headersforeground=cal_conf["headersforeground"]
+                headersforeground=cal_conf["headersforeground"],
+                selectbackground=cal_conf["selectbackground"],
+                selectforeground=cal_conf["selectforeground"]
             )
             cal.pack(**cal_conf["pack"])
         else:
@@ -1226,22 +1230,23 @@ class MainWindow:
             except Exception as e:
                 messagebox.showerror("Error", f"Error exportando reporte: {str(e)}")
 
-            btn_conf = diseño["button"]
-            export_btn = tk.Button(
-                top,
-                text=btn_conf["text"],
-                font=tuple(btn_conf["font"]),
-                bg=btn_conf["bg"],
-                fg=btn_conf["fg"],
-                activebackground=btn_conf["activebackground"],
-                activeforeground=btn_conf["activeforeground"],
-                relief=btn_conf["relief"],
-                borderwidth=btn_conf["borderwidth"],
-                width=btn_conf["width"],
-                height=btn_conf["height"],
-                command=exportar
-            )
-            export_btn.pack(**btn_conf["pack"])
+        # Botón de exportar (fuera de la función exportar)
+        btn_conf = diseño["button"]
+        export_btn = tk.Button(
+            top,
+            text=btn_conf["text"],
+            font=tuple(btn_conf["font"]),
+            bg=btn_conf["bg"],
+            fg=btn_conf["fg"],
+            activebackground=btn_conf["activebackground"],
+            activeforeground=btn_conf["activeforeground"],
+            relief=btn_conf["relief"],
+            borderwidth=btn_conf["borderwidth"],
+            width=btn_conf["width"],
+            height=btn_conf["height"],
+            command=exportar
+        )
+        export_btn.pack(**btn_conf["pack"])
 
     def buscar_codigo(self):
         codigo = self.codigo_var.get().strip()
@@ -1422,7 +1427,6 @@ class MainWindow:
             command=self.exportar_reporte_dia
         )
         self.exportar_button.pack(**exportar_conf["pack"])
-
 
     def actualizar_indice(self):
         es_valido, mensaje = Validators.validar_configuracion_completa(self.config_data)

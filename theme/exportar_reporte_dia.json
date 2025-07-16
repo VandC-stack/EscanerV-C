@@ -1,7 +1,7 @@
 {
   "window": {
     "title": "📅 Seleccionar Fecha para Reporte",
-    "geometry": "400x240",
+    "geometry": "500x500",
     "bg": "#FFFFFF"
   },
   "label": {
@@ -9,7 +9,7 @@
     "font": ["Segoe UI", 16, "bold"],
     "fg": "#2C3E50",
     "bg": "#FFFFFF",
-    "pack": { "pady": [30, 10] }
+    "pack": { "pady": [30, 15] }
   },
   "calendar": {
     "width": 18,
@@ -22,29 +22,31 @@
     "headersforeground": "#000000",
     "selectbackground": "#ECD925",
     "selectforeground": "#000000",
-    "pack": { "pady": [0, 10] }
+    "pack": { "pady": [0, 20] }
   },
   "label_warning": {
     "text": "⚠️ Instala tkcalendar para el selector visual",
     "fg": "#E74C3C",
     "bg": "#FFFFFF",
-    "font": ["Segoe UI", 11],
-    "pack": { "pady": [8, 4] }
+    "font": ["Segoe UI", 11, "italic"],
+    "pack": { "pady": [8, 10] }
   },
   "button": {
-      "text": "📤 Exportar",
-      "font": ["Arial", 12, "bold"],
-      "bg": "#4CAF50",
-      "fg": "#FFFFFF",
-      "activebackground": "#45A049",
-      "activeforeground": "#FFFFFF",
-      "relief": "raised",
-      "borderwidth": 2,
-      "width": 15,
-      "height": 2,
-      "pack": {
-        "side": "bottom",
-        "pady": 10
-      }
+    "text": "📤 Exportar",
+    "font": ["Segoe UI", 13, "bold"],
+    "bg": "#4CAF50",
+    "fg": "#FFFFFF",
+    "activebackground": "#45A049",
+    "activeforeground": "#FFFFFF",
+    "relief": "raised",
+    "borderwidth": 2,
+    "width": 20,
+    "height": 2,
+    "padx": 20,
+    "pady": 10,
+    "pack": {
+      "side": "bottom",
+      "pady": 20
+    }
   }
 }
