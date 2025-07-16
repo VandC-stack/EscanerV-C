@@ -1,0 +1,75 @@
+{
+  "ventana": {
+    "title": "Historial del día",
+    "geometry": "1000x800",
+    "fg_color": "#FFFFFF"
+  },
+  "main_frame": {
+    "type": "CTkFrame",
+    "pack": { "fill": "both", "expand": true, "padx": 20, "pady": 20 },
+    "fg_color": "#FFFFFF"
+  },
+  "labels": [
+    {
+      "text": "Cargas CLP del día:",
+      "font": ["Segoe UI", 16, "bold"],
+      "text_color": "#282828",
+      "pack": { "anchor": "w", "pady": [0, 5] }
+    },
+    {
+      "text": "Consultas recientes:",
+      "font": ["Segoe UI", 16, "bold"],
+      "text_color": "#282828",
+      "pack": { "anchor": "w", "pady": [20, 5] }
+    }
+  ],
+  "textboxes": [
+    {
+      "name": "cargas_label",
+      "width": 650,
+      "height": 60,
+      "fg_color": "#F2F2F2",
+      "text_color": "#000000",
+      "font": ["Segoe UI", 12],
+      "pack": { "pady": [0, 15] }
+    }
+  ],
+  "table": {
+    "columns": ["Fecha/Hora", "Usuario", "Código de Barras", "Resultado"],
+    "column_config": {
+      "Fecha/Hora": { "width": 160, "anchor": "center" },
+      "Usuario": { "width": 100, "anchor": "center" },
+      "Código de Barras": { "width": 220, "anchor": "center" },
+      "Resultado": { "width": 120, "anchor": "center" }
+    },
+    "style": {
+      "Treeview": {
+        "background": "#FFFFFF",
+        "foreground": "#282828",
+        "rowheight": 24,
+        "fieldbackground": "#FFFFFF",
+        "font": ["Segoe UI", 11],
+        "bordercolor": "#CCCCCC",
+        "borderwidth": 1
+      },
+      "Treeview.Heading": {
+        "background": "#ECD925",
+        "foreground": "#000000",
+        "font": ["Segoe UI", 13, "bold"]
+      },
+      "selected": "#E6E6E6",
+      "evenrow": "#F9F9F9",
+      "oddrow": "#F0F0F0"
+    }
+  },
+  "boton_cerrar": {
+    "text": "Cerrar",
+    "font": ["Segoe UI", 14, "bold"],
+    "fg_color": "#CCCCCC",
+    "text_color": "#000000",
+    "width": 180,
+    "height": 40,
+    "corner_radius": 12,
+    "pack": { "pady": 20 }
+  }
+}

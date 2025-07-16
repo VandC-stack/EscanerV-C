@@ -1,0 +1,69 @@
+{
+  "frame": {
+    "fg_color": "#F5F6FA",
+    "fill": "both",
+    "expand": true,
+    "padx": 0,
+    "pady": 0
+  },
+  "titulo": {
+    "text": "🔐 Iniciar Sesión",
+    "font": ["Segoe UI", 20, "bold"],
+    "text_color": "#2C3E50",
+    "pady": [150, 20]
+  },
+  "form_box": {
+    "fg_color": "#ECD925",
+    "corner_radius": 16,
+    "padx": 0,
+    "pady": 0,
+    "internal_padx": 60,
+    "internal_pady": 60
+  },
+  "labels": [
+    {
+      "text": "👤 Usuario",
+      "anchor": "center",
+      "text_color": "#2C3E50"
+    },
+    {
+      "text": "🔒 Contraseña",
+      "anchor": "center",
+      "text_color": "#2C3E50"
+    }
+  ],
+  "entry": {
+    "width": 280,
+    "height": 38,
+    "fg_color": "#F0F0F0",
+    "border_color": "#BDC3C7",
+    "border_width": 1,
+    "corner_radius": 12,
+    "text_color": "#2C3E50",
+    "placeholder_text_color": "#282828"
+  },
+  "entry_pady": [16, 16],
+  "pass_row": {
+    "fg_color": "#ECD925"
+  },
+  "login_button": {
+    "text": "Ingresar",
+    "width": 150,
+    "height": 40,
+    "fg_color": "#282828",
+    "text_color": "#d8d8d8",
+    "hover_color": "#282828",
+    "border_color": "#282828",
+    "border_width": 0,
+    "corner_radius": 10,
+    "font": ["Segoe UI", 13, "bold"],
+    "padx": [0, 0],
+    "pady": [20, 10]
+  },
+  "error_label": {
+    "text": "",
+    "text_color": "#E74C3C",
+    "font": ["Segoe UI", 10, "bold"],
+    "pady": [10, 0]
+  }
+}
