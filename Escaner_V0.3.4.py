@@ -1502,21 +1502,44 @@ class MainWindow:
                                 border_width=cerrar_cfg.get("border_width", 0))
         cerrar_btn.pack(pady=10)
 
-        historial_btn_cfg = diseño["botones"]["historial"]
-        self.historial_button = ct.CTkButton(main_frame,
-                                            text=historial_btn_cfg["text"],
-                                            font=tuple(historial_btn_cfg["font"]),
-                                            fg_color=historial_btn_cfg["fg_color"],
-                                            border_width=historial_btn_cfg["border_width"],
-                                            border_color=historial_btn_cfg["border_color"],
-                                            text_color=historial_btn_cfg["text_color"],
-                                            hover_color=historial_btn_cfg.get("hover_color", "#111111"),
-                                            corner_radius=historial_btn_cfg["corner_radius"],
-                                            width=historial_btn_cfg["width"],
-                                            height=historial_btn_cfg["height"],
-                                            command=self.mostrar_historial_cargas_y_consultas)
-        self.historial_button.pack(pady=historial_btn_cfg.get("pack", {}).get("pady", (0, 18)))
+    def mostrar_opciones_exportar(self):
+        if hasattr(self, 'exportar_frame') and self.exportar_frame.winfo_exists():
+            self.exportar_frame.destroy()  # Limpia si ya existe
 
+        self.exportar_frame = ct.CTkFrame(self.master, fg_color="#FFFFFF")
+        self.exportar_frame.pack(pady=12)
+
+        diseño = cargar_diseño("theme/historial_dia.json")
+
+        exportar_capturas_cfg = diseño["botones"]["exportar_capturas"]
+        exportar_capturas_btn = ct.CTkButton(self.exportar_frame,
+                                            text=exportar_capturas_cfg["text"],
+                                            font=tuple(exportar_capturas_cfg["font"]),
+                                            fg_color=exportar_capturas_cfg["fg_color"],
+                                            border_width=exportar_capturas_cfg["border_width"],
+                                            border_color=exportar_capturas_cfg["border_color"],
+                                            text_color=exportar_capturas_cfg["text_color"],
+                                            hover_color=exportar_capturas_cfg["hover_color"],
+                                            corner_radius=exportar_capturas_cfg["corner_radius"],
+                                            width=exportar_capturas_cfg["width"],
+                                            height=exportar_capturas_cfg["height"],
+                                            command=self.exportar_capturas_funcion)  # <- tu lógica aquí
+        exportar_capturas_btn.pack(pady=exportar_capturas_cfg["pack"].get("pady", (0, 10)))
+
+        exportar_reporte_cfg = diseño["botones"]["exportar_reporte"]
+        exportar_reporte_btn = ct.CTkButton(self.exportar_frame,
+                                            text=exportar_reporte_cfg["text"],
+                                            font=tuple(exportar_reporte_cfg["font"]),
+                                            fg_color=exportar_reporte_cfg["fg_color"],
+                                            border_width=exportar_reporte_cfg["border_width"],
+                                            border_color=exportar_reporte_cfg["border_color"],
+                                            text_color=exportar_reporte_cfg["text_color"],
+                                            hover_color=exportar_reporte_cfg["hover_color"],
+                                            corner_radius=exportar_reporte_cfg["corner_radius"],
+                                            width=exportar_reporte_cfg["width"],
+                                            height=exportar_reporte_cfg["height"],
+                                            command=self.exportar_reporte_funcion)  # <- tu lógica aquí
+        exportar_reporte_btn.pack(pady=exportar_reporte_cfg["pack"].get("pady", (0, 10)))
 
 
 

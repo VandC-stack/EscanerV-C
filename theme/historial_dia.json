@@ -1,148 +1,109 @@
  {
   "window": {
     "title": "Historial del Día",
-    "geometry": "500x650",
-    "fg_color": "#F5F7FA" 
+    "geometry": "480x480",
+    "fg_color": "#F5F7FA"
   },
   "main_frame": {
     "fg_color": "#FFFFFF",
     "pack": {
       "fill": "both",
       "expand": true,
-      "padx": 12,
-      "pady": 12
+      "padx": 10,
+      "pady": 10
     }
   },
   "filtro_frame": {
-    "fg_color": "#E1E8F0", 
+    "fg_color": "#E1E8F0",
     "pack": {
       "fill": "x",
-      "pady": [0, 15],
+      "pady": [0, 10],
       "padx": 0
     }
   },
   "labels": {
     "filtro": {
-      "text": "🔍 Filtrar por archivo:",
+      "text": "🔍 Archivo:",
       "text_color": "#2C3E50",
-      "font": ["Segoe UI", 13, "bold"],
-      "padx": [0, 8],
+      "font": ["Segoe UI", 11, "bold"],
+      "padx": [0, 10],
       "anchor": "w",
       "pack": {"side": "left"}
     },
     "cargas": {
-      "text": "📂 Cargas CLP del Día",
-      "font": ["Segoe UI", 18, "bold"],
+      "text": "📂 Cargas del Día",
+      "font": ["Segoe UI", 14, "bold"],
       "text_color": "#34495E",
       "fg_color": "#FFFFFF",
       "padx": 5,
-      "pady": [5, 12],
+      "pady": [5, 6],
       "anchor": "w",
-      "pack": {"anchor": "w", "pady": [0, 8]}
+      "pack": {"anchor": "w", "pady": [0, 6]}
     },
     "consultas": {
-      "text": "🔎 Consultas Recientes",
-      "font": ["Segoe UI", 18, "bold"],
+      "text": "🔎 Consultas",
+      "font": ["Segoe UI", 14, "bold"],
       "text_color": "#34495E",
       "fg_color": "#FFFFFF",
       "padx": 5,
-      "pady": [5, 12],
+      "pady": [5, 6],
       "anchor": "w",
-      "pack": {"anchor": "w", "pady": [12, 8]}
+      "pack": {"anchor": "w", "pady": [8, 6]}
     },
     "capturas": {
-      "text": "📸 Capturas del Día",
-      "font": ["Segoe UI", 18, "bold"],
+      "text": "📸 Capturas",
+      "font": ["Segoe UI", 14, "bold"],
       "text_color": "#34495E",
       "fg_color": "#FFFFFF",
-      "padx": 5,
-      "pady": [5, 12],
+      "padx": 0,
+      "pady": [5, 6],
       "anchor": "w",
-      "pack": {"anchor": "w", "pady": [12, 8]}
+      "pack": {"anchor": "w", "pady": [8, 6]}
     }
   },
   "entry": {
-    "width": 220,
-    "height": 30,
-    "corner_radius": 10,
+    "width": 160,
+    "height": 28,
+    "corner_radius": 8,
     "border_width": 1,
     "border_color": "#2980B9",
     "fg_color": "#FFFFFF",
     "text_color": "#2C3E50",
-    "font": ["Segoe UI", 13],
+    "font": ["Segoe UI", 11],
     "pack": {"side": "left"}
   },
   "textbox": {
-    "width": 660,
-    "height": 80,
+    "width": 440,
+    "height": 60,
     "fg_color": "#ECF0F1",
     "text_color": "#2C3E50",
-    "font": ["Segoe UI", 13],
+    "font": ["Segoe UI", 11],
     "corner_radius": 10,
     "border_width": 1,
     "border_color": "#2980B9",
-    "pack": {"pady": [0, 18]}
+    "pack": {"pady": [0, 10]}
   },
   "botones": {
     "cerrar": {
-      "text": "Cerrar",
+      "text": "❌ Cerrar",
       "fg_color": "#E74C3C",
       "text_color": "#FFFFFF",
       "hover_color": "#C0392B",
       "pressed_color": "#922B21",
-      "font": ["Segoe UI", 15, "bold"],
-      "corner_radius": 14,
-      "width": 220,
-      "height": 44,
+      "font": ["Segoe UI", 13, "bold"],
+      "corner_radius": 12,
+      "width": 180,
+      "height": 36,
       "border_width": 0,
-      "pack": {"pady": 14}
-    },
-    "historial": {
-      "text": "Ver Historial del Día",
-      "font": ["Segoe UI", 13, "bold"],
-      "fg_color": "#2980B9",
-      "border_width": 2,
-      "border_color": "#1F618D",
-      "text_color": "#FFFFFF",
-      "hover_color": "#1F618D",
-      "corner_radius": 14,
-      "width": 220,
-      "height": 36,
-      "pack": {"pady": [0, 20]}
-    },
-    "exportar_reporte": {
-      "text": "Exportar Reporte del Día",
-      "font": ["Segoe UI", 13, "bold"],
-      "fg_color": "#2980B9",
-      "border_width": 2,
-      "border_color": "#1F618D",
-      "text_color": "#FFFFFF",
-      "hover_color": "#1F618D",
-      "corner_radius": 14,
-      "width": 220,
-      "height": 36,
-      "pack": {"pady": [0, 14]}
-    },
-    "exportar_capturas": {
-      "text": "Exportar Capturas del Día",
-      "font": ["Segoe UI", 15, "bold"],
-      "fg_color": "#2980B9",
-      "border_width": 2,
-      "border_color": "#1F618D",
-      "text_color": "#FFFFFF",
-      "hover_color": "#1F618D",
-      "corner_radius": 14,
-      "width": 220,
-      "height": 44,
-      "pack": {"pady": [0, 14]}
+      "pack": {"pady": 10}
     }
   },
   "tablas": {
     "treeview_consultas": {
       "background": "#FFFFFF",
-      "columns": ["Fecha/Hora", "Usuario", "Código de Barras", "Resultado"],
-      "rowheight": 28,
-      "font": ["Segoe UI", 12],
+      "columns": ["Fecha", "Usuario", "Código", "Resultado"],
+      "rowheight": 24,
+      "font": ["Segoe UI", 10],
       "foreground": "#2C3E50",
       "fieldbackground": "#F8F9F9",
       "bordercolor": "#2980B9",
@@ -150,23 +111,23 @@
       "heading": {
         "background": "#2980B9",
         "foreground": "#FFFFFF",
-        "font": ["Segoe UI", 13, "bold"],
+        "font": ["Segoe UI", 11, "bold"],
         "relief": "flat"
       },
       "evenrow": "#ECF0F1",
       "oddrow": "#FFFFFF",
       "selected_bg": "#85C1E9",
       "columns_width": {
-        "Fecha/Hora": 140,
-        "Usuario": 110,
-        "Código de Barras": 200,
-        "Resultado": 180
+        "Fecha": 100,
+        "Usuario": 90,
+        "Código": 120,
+        "Resultado": 110
       }
     },
     "treeview_capturas": {
-      "columns": ["Fecha/Hora", "Usuario", "Código", "Item", "Resultado", "Motivo"],
-      "rowheight": 28,
-      "font": ["Segoe UI", 12],
+      "columns": ["Fecha", "Usuario", "Código", "Item", "Resultado", "Motivo"],
+      "rowheight": 24,
+      "font": ["Segoe UI", 10],
       "background": "#FFFFFF",
       "foreground": "#2C3E50",
       "fieldbackground": "#F8F9F9",
@@ -175,19 +136,19 @@
       "heading": {
         "background": "#2980B9",
         "foreground": "#FFFFFF",
-        "font": ["Segoe UI", 13, "bold"],
+        "font": ["Segoe UI", 11, "bold"],
         "relief": "flat"
       },
       "evenrow": "#ECF0F1",
       "oddrow": "#FFFFFF",
       "selected_bg": "#85C1E9",
       "columns_width": {
-        "Fecha/Hora": 160,
-        "Usuario": 90,
-        "Código": 180,
-        "Item": 90,
-        "Resultado": 110,
-        "Motivo": 180
+        "Fecha": 90,
+        "Usuario": 70,
+        "Código": 90,
+        "Item": 70,
+        "Resultado": 90,
+        "Motivo": 90
       }
     }
   }
