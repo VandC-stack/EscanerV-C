@@ -1,87 +1,194 @@
-{
+ {
   "window": {
-    "title": "Historial del día",
-    "geometry": "700x500",
-    "fg_color": "#000000"
+    "title": "Historial del Día",
+    "geometry": "500x650",
+    "fg_color": "#F5F7FA" 
   },
   "main_frame": {
-    "fg_color": "#000000",
-    "padx": 20,
-    "pady": 20,
-    "fill": "both",
-    "expand": true
+    "fg_color": "#FFFFFF",
+    "pack": {
+      "fill": "both",
+      "expand": true,
+      "padx": 12,
+      "pady": 12
+    }
+  },
+  "filtro_frame": {
+    "fg_color": "#E1E8F0", 
+    "pack": {
+      "fill": "x",
+      "pady": [0, 15],
+      "padx": 0
+    }
   },
   "labels": {
-    "cargas_titulo": {
-      "text": "Cargas CLP del día:",
-      "font": ["Segoe UI", 16, "bold"],
-      "text_color": "#00FFAA",
-      "fg_color": "#000000",
-      "anchor": "w",
-      "pady": [0, 5]
-    },
-    "consultas_titulo": {
-      "text": "Consultas recientes:",
-      "font": ["Segoe UI", 16, "bold"],
-      "text_color": "#00FFAA",
-      "fg_color": "#000000",
-      "anchor": "w",
-      "pady": [0, 5]
-    }
-  },
-  "textboxes": {
-    "cargas": {
-      "width": 650,
-      "height": 60,
-      "fg_color": "#111111",
-      "text_color": "#00FFAA",
-      "font": ["Segoe UI", 12],
-      "pady": [0, 15]
-    }
-  },
-  "table_frame": {
-    "fg_color": "#111111",
-    "fill": "both",
-    "expand": true,
-    "pady": [0, 10]
-  },
-  "treeview": {
-    "columns": ["Fecha/Hora", "Usuario", "Código de Barras", "Resultado"],
-    "show": "headings",
-    "height": 12,
-    "column_widths": [160, 100, 220, 120],
-    "column_anchors": ["center", "center", "center", "center"],
-    "style": {
-      "background": "#111111",
-      "foreground": "#00FFAA",
-      "rowheight": 24,
-      "fieldbackground": "#111111",
-      "font": ["Segoe UI", 11],
-      "bordercolor": "#222222",
-      "borderwidth": 1
-    },
-    "heading_style": {
-      "background": "#00FFAA",
-      "foreground": "#000000",
+    "filtro": {
+      "text": "🔍 Filtrar por archivo:",
+      "text_color": "#2C3E50",
       "font": ["Segoe UI", 13, "bold"],
-      "relief": "flat"
+      "padx": [0, 8],
+      "anchor": "w",
+      "pack": {"side": "left"}
     },
-    "tags": {
-      "evenrow": "#181818",
-      "oddrow": "#222222",
-      "selected_background": "#222222"
+    "cargas": {
+      "text": "📂 Cargas CLP del Día",
+      "font": ["Segoe UI", 18, "bold"],
+      "text_color": "#34495E",
+      "fg_color": "#FFFFFF",
+      "padx": 5,
+      "pady": [5, 12],
+      "anchor": "w",
+      "pack": {"anchor": "w", "pady": [0, 8]}
+    },
+    "consultas": {
+      "text": "🔎 Consultas Recientes",
+      "font": ["Segoe UI", 18, "bold"],
+      "text_color": "#34495E",
+      "fg_color": "#FFFFFF",
+      "padx": 5,
+      "pady": [5, 12],
+      "anchor": "w",
+      "pack": {"anchor": "w", "pady": [12, 8]}
+    },
+    "capturas": {
+      "text": "📸 Capturas del Día",
+      "font": ["Segoe UI", 18, "bold"],
+      "text_color": "#34495E",
+      "fg_color": "#FFFFFF",
+      "padx": 5,
+      "pady": [5, 12],
+      "anchor": "w",
+      "pack": {"anchor": "w", "pady": [12, 8]}
     }
   },
-  "button": {
+  "entry": {
+    "width": 220,
+    "height": 30,
+    "corner_radius": 10,
+    "border_width": 1,
+    "border_color": "#2980B9",
+    "fg_color": "#FFFFFF",
+    "text_color": "#2C3E50",
+    "font": ["Segoe UI", 13],
+    "pack": {"side": "left"}
+  },
+  "textbox": {
+    "width": 660,
+    "height": 80,
+    "fg_color": "#ECF0F1",
+    "text_color": "#2C3E50",
+    "font": ["Segoe UI", 13],
+    "corner_radius": 10,
+    "border_width": 1,
+    "border_color": "#2980B9",
+    "pack": {"pady": [0, 18]}
+  },
+  "botones": {
     "cerrar": {
       "text": "Cerrar",
-      "font": ["Segoe UI", 14, "bold"],
-      "fg_color": "#00FFAA",
-      "text_color": "#000000",
-      "width": 200,
-      "height": 40,
-      "corner_radius": 12,
-      "pady": 10
+      "fg_color": "#E74C3C",
+      "text_color": "#FFFFFF",
+      "hover_color": "#C0392B",
+      "pressed_color": "#922B21",
+      "font": ["Segoe UI", 15, "bold"],
+      "corner_radius": 14,
+      "width": 220,
+      "height": 44,
+      "border_width": 0,
+      "pack": {"pady": 14}
+    },
+    "historial": {
+      "text": "Ver Historial del Día",
+      "font": ["Segoe UI", 13, "bold"],
+      "fg_color": "#2980B9",
+      "border_width": 2,
+      "border_color": "#1F618D",
+      "text_color": "#FFFFFF",
+      "hover_color": "#1F618D",
+      "corner_radius": 14,
+      "width": 220,
+      "height": 36,
+      "pack": {"pady": [0, 20]}
+    },
+    "exportar_reporte": {
+      "text": "Exportar Reporte del Día",
+      "font": ["Segoe UI", 13, "bold"],
+      "fg_color": "#2980B9",
+      "border_width": 2,
+      "border_color": "#1F618D",
+      "text_color": "#FFFFFF",
+      "hover_color": "#1F618D",
+      "corner_radius": 14,
+      "width": 220,
+      "height": 36,
+      "pack": {"pady": [0, 14]}
+    },
+    "exportar_capturas": {
+      "text": "Exportar Capturas del Día",
+      "font": ["Segoe UI", 15, "bold"],
+      "fg_color": "#2980B9",
+      "border_width": 2,
+      "border_color": "#1F618D",
+      "text_color": "#FFFFFF",
+      "hover_color": "#1F618D",
+      "corner_radius": 14,
+      "width": 220,
+      "height": 44,
+      "pack": {"pady": [0, 14]}
+    }
+  },
+  "tablas": {
+    "treeview_consultas": {
+      "background": "#FFFFFF",
+      "columns": ["Fecha/Hora", "Usuario", "Código de Barras", "Resultado"],
+      "rowheight": 28,
+      "font": ["Segoe UI", 12],
+      "foreground": "#2C3E50",
+      "fieldbackground": "#F8F9F9",
+      "bordercolor": "#2980B9",
+      "borderwidth": 1,
+      "heading": {
+        "background": "#2980B9",
+        "foreground": "#FFFFFF",
+        "font": ["Segoe UI", 13, "bold"],
+        "relief": "flat"
+      },
+      "evenrow": "#ECF0F1",
+      "oddrow": "#FFFFFF",
+      "selected_bg": "#85C1E9",
+      "columns_width": {
+        "Fecha/Hora": 140,
+        "Usuario": 110,
+        "Código de Barras": 200,
+        "Resultado": 180
+      }
+    },
+    "treeview_capturas": {
+      "columns": ["Fecha/Hora", "Usuario", "Código", "Item", "Resultado", "Motivo"],
+      "rowheight": 28,
+      "font": ["Segoe UI", 12],
+      "background": "#FFFFFF",
+      "foreground": "#2C3E50",
+      "fieldbackground": "#F8F9F9",
+      "bordercolor": "#2980B9",
+      "borderwidth": 1,
+      "heading": {
+        "background": "#2980B9",
+        "foreground": "#FFFFFF",
+        "font": ["Segoe UI", 13, "bold"],
+        "relief": "flat"
+      },
+      "evenrow": "#ECF0F1",
+      "oddrow": "#FFFFFF",
+      "selected_bg": "#85C1E9",
+      "columns_width": {
+        "Fecha/Hora": 160,
+        "Usuario": 90,
+        "Código": 180,
+        "Item": 90,
+        "Resultado": 110,
+        "Motivo": 180
+      }
     }
   }
 }

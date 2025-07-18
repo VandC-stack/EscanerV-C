@@ -1,0 +1,58 @@
+{
+  "botones": {
+    "exportar_capturas_del_dia": {
+      "text": "Exportar Capturas del Día",
+      "font": ["Segoe UI", 14, "bold"],
+      "fg_color": "#000000",
+      "border_width": 2,
+      "border_color": "#00FFAA",
+      "text_color": "#00FFAA",
+      "hover_color": "#111111",
+      "corner_radius": 12,
+      "width": 200,
+      "height": 40,
+      "pady": [0, 10]
+    }
+  },
+  "ventana_exportar": {
+    "bg": "#000000",
+    "label": {
+      "text": "Selecciona la fecha:",
+      "font": ["Segoe UI", 16, "bold"],
+      "fg": "#00FFAA",
+      "bg": "#000000",
+      "pady": 20
+    },
+    "calendario": {
+      "width": 18,
+      "background": "#111111",
+      "foreground": "#00FFAA",
+      "borderwidth": 2,
+      "date_pattern": "yyyy-mm-dd",
+      "font": ["Segoe UI", 14],
+      "headersbackground": "#222222",
+      "headersforeground": "#00FFAA",
+      "pady": 10
+    },
+    "error_label": {
+      "text": "Instala tkcalendar para selector visual",
+      "fg": "red",
+      "bg": "#000000",
+      "font": ["Segoe UI", 12, "bold"],
+      "pady": 10
+    },
+    "boton": {
+      "text": "Exportar captura",
+      "font": ["Segoe UI", 14, "bold"],
+      "bg": "#00FFAA",
+      "fg": "#000000",
+      "activebackground": "#00FFAA",
+      "activeforeground": "#000000",
+      "relief": "flat",
+      "borderwidth": 0,
+      "width": 16,
+      "height": 2,
+      "pady": 20
+    }
+  }
+}

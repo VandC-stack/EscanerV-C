@@ -48,5 +48,20 @@
       "side": "bottom",
       "pady": 20
     }
+  },
+   "botones": {
+    "exportar_capturas_del_dia": {
+      "text": "Exportar Capturas del Día",
+      "font": ["Segoe UI", 14, "bold"],
+      "fg_color": "#000000",
+      "border_width": 2,
+      "border_color": "#00FFAA",
+      "text_color": "#00FFAA",
+      "hover_color": "#111111",
+      "corner_radius": 12,
+      "width": 200,
+      "height": 40,
+      "pady": [0, 10]
+    }
   }
 }

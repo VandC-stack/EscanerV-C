@@ -1105,6 +1105,10 @@ class EscanerApp:
             height=36
         ).pack(pady=5, padx=20, anchor="w")
 
+
+
+
+
 class LoginWindow:
     def __init__(self, master, usuario_model, logger, on_success):
         self.master = master
