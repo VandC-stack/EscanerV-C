@@ -1,22 +1,23 @@
-import customtkinter as ct
-from tkinter import StringVar, messagebox, filedialog, ttk, simpledialog
-from PIL import Image
-import os
-import sys
-import threading
-from datetime import datetime
-import time
-import logging
-from typing import Dict, List, Optional
-import pandas as pd
-import re
-import math
-import hashlib
-import json
-import subprocess
+import customtkinter as ct # <--- Interfaz gráfica
+from tkinter import StringVar, messagebox, filedialog, ttk, simpledialog # <--- Interfaz gráfica
+from PIL import Image # <--- Manipulación de imágenes
+import os # <--- Manipulación de archivos
+import sys # <--- Sistema operativo
+import threading # <--- Hilos de ejecución
+from datetime import datetime # <---  Fecha y hora 
+import time # <--- Tiempo
+import logging # <--- Sistema de eventos
+from typing import Dict, List, Optional # <--- Tipos de datos
+import pandas as pd # <--- Manipulación de datos
+import re # <--- Expresiones regulares 
+import math # <--- Matemáticas más precisas
+import hashlib # <--- Hashing de datos
+import json # <--- Manipulación de datos en formato JSON
+import subprocess # <--- Ejecución de comandos del sistema
+import mplcursors # <--- Tooltips para interacciones con gráficas
 try:
-    from tkcalendar import DateEntry 
-except ImportError:
+    from tkcalendar import DateEntry  # <--- Calendario para seleccionar fechas
+except ImportError: # <--- Si no se encuentra el módulo, se asigna None
     DateEntry = None
 
 # Configuración de la aplicación
@@ -528,7 +529,7 @@ class EscanerApp:
             cal = None
 
         def exportar():
-            fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
+            fecha = cal.get_date().strftime('%Y-%m-d') if cal else None
             if not fecha:
                 messagebox.showerror("Error", "Selecciona una fecha válida.")
                 return
@@ -1105,6 +1106,148 @@ class EscanerApp:
             height=36
         ).pack(pady=5, padx=20, anchor="w")
 
+    def _configurar_tab_base_datos(self, parent):
+        """Configura la pestaña de base de datos para superadmin"""
+        try:
+            main_frame = ct.CTkFrame(parent, fg_color="#000000")
+            main_frame.pack(fill="both", expand=True, padx=40, pady=40)
+            ct.CTkLabel(
+                main_frame, 
+                text="Panel de Administración - Base de Datos", 
+                font=("Segoe UI", 18, "bold"), 
+                text_color="#00FFAA"
+            ).pack(pady=(0, 20))
+            # Tabs para cada tabla
+            tablas_tabview = ct.CTkTabview(main_frame, fg_color="#111111")
+            tablas_tabview.pack(fill="both", expand=True)
+            # Auditoría (reemplaza Usuarios solo lectura)
+            tablas_tabview.add("Auditoría")
+            self._crear_tabla_auditoria(tablas_tabview.tab("Auditoría"))
+            # Ítems (nueva pestaña)
+            tablas_tabview.add("Ítems")
+            self._crear_tabla_items(tablas_tabview.tab("Ítems"))
+            # Capturas (solo si NO es superadmin)
+            if self.rol != "superadmin":
+                tablas_tabview.add("Capturas")
+                self._configurar_tab_captura(tablas_tabview.tab("Capturas"))
+        except Exception as e:
+            try:
+                if hasattr(self, 'logger') and self.logger:
+                    self.logger.error(f"Error configurando tab base de datos: {str(e)}")
+                else:
+                    print(f"Error configurando tab base de datos: {str(e)}")
+            except:
+                print(f"Error configurando tab base de datos: {str(e)}")
+            raise e
+
+    def _crear_tabla_auditoria(self, parent):
+        from tkinter import ttk
+        import pandas as pd
+        import datetime
+        # Filtros
+        filtros_frame = ct.CTkFrame(parent, fg_color="#000000")
+        filtros_frame.pack(fill="x", padx=20, pady=(20, 10))
+        # Usuario
+        ct.CTkLabel(filtros_frame, text="Usuario:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        self.filtro_usuario_var = ct.StringVar()
+        usuario_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_usuario_var, width=120)
+        usuario_entry.pack(side="left", padx=(0, 10))
+        # Acción
+        ct.CTkLabel(filtros_frame, text="Acción:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        self.filtro_accion_var = ct.StringVar()
+        accion_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_accion_var, width=120)
+        accion_entry.pack(side="left", padx=(0, 10))
+        # Fecha desde
+        ct.CTkLabel(filtros_frame, text="Desde:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        self.filtro_fecha_desde_var = ct.StringVar()
+        desde_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_desde_var, width=100, placeholder_text="YYYY-MM-DD")
+        desde_entry.pack(side="left", padx=(0, 10))
+        # Fecha hasta
+        ct.CTkLabel(filtros_frame, text="Hasta:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        self.filtro_fecha_hasta_var = ct.StringVar()
+        hasta_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_hasta_var, width=100, placeholder_text="YYYY-MM-DD")
+        hasta_entry.pack(side="left", padx=(0, 10))
+        # Botón filtrar
+        filtrar_btn = ct.CTkButton(filtros_frame, text="Filtrar", fg_color="#00FFAA", text_color="#000000", width=80, command=self.cargar_auditoria)
+        filtrar_btn.pack(side="left", padx=(10, 0))
+        # Botón exportar
+        exportar_btn = ct.CTkButton(filtros_frame, text="Exportar a Excel", fg_color="#00AAFF", text_color="#FFFFFF", width=120, command=self.exportar_auditoria_excel)
+        exportar_btn.pack(side="left", padx=(10, 0))
+        # Tabla
+        table_frame = ct.CTkFrame(parent, fg_color="#000000")
+        table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        columns = ("Usuario", "Acción", "Detalles", "Fecha")
+        self.auditoria_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=18)
+        for col in columns:
+            self.auditoria_tree.heading(col, text=col)
+            self.auditoria_tree.column(col, width=180, anchor="center")
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure("Treeview",
+                        background="#000000",
+                        foreground="#00FFAA",
+                        rowheight=25,
+                        fieldbackground="#000000")
+        style.configure("Treeview.Heading",
+                        background="#111111",
+                        foreground="#00FFAA",
+                        font=("Segoe UI", 10, "bold"))
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.auditoria_tree.yview)
+        self.auditoria_tree.configure(yscrollcommand=scrollbar.set)
+        self.auditoria_tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        self.cargar_auditoria()
+
+    def cargar_auditoria(self):
+        # Construir query con filtros
+        usuario = self.filtro_usuario_var.get().strip()
+        accion = self.filtro_accion_var.get().strip()
+        fecha_desde = self.filtro_fecha_desde_var.get().strip()
+        fecha_hasta = self.filtro_fecha_hasta_var.get().strip()
+        query = "SELECT usuario, accion, detalles, fecha FROM auditoria WHERE 1=1"
+        params = []
+        if usuario:
+            query += " AND usuario ILIKE %s"
+            params.append(f"%{usuario}%")
+        if accion:
+            query += " AND accion ILIKE %s"
+            params.append(f"%{accion}%")
+        if fecha_desde:
+            query += " AND fecha >= %s"
+            params.append(fecha_desde)
+        if fecha_hasta:
+            query += " AND fecha <= %s"
+            params.append(fecha_hasta + " 23:59:59")
+        query += " ORDER BY fecha DESC LIMIT 500"
+        try:
+            for item in self.auditoria_tree.get_children():
+                self.auditoria_tree.delete(item)
+            resultados = self.db_manager.execute_query(query, tuple(params))
+            for r in resultados:
+                self.auditoria_tree.insert("", "end", values=(r['usuario'], r['accion'], r['detalles'], str(r['fecha'])))
+        except Exception as e:
+            print(f"Error cargando auditoría: {e}")
+
+    def exportar_auditoria_excel(self):
+        import pandas as pd
+        from tkinter import filedialog, messagebox
+        # Obtener datos actuales de la tabla
+        rows = [self.auditoria_tree.item(item)["values"] for item in self.auditoria_tree.get_children()]
+        if not rows:
+            messagebox.showinfo("Sin datos", "No hay datos para exportar.")
+            return
+        df = pd.DataFrame(rows, columns=["Usuario", "Acción", "Detalles", "Fecha"])
+        ruta = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Archivos Excel", "*.xlsx")],
+            initialfile="auditoria.xlsx",
+            title="Guardar auditoría como..."
+        )
+        if not ruta:
+            return
+        df.to_excel(ruta, index=False)
+        messagebox.showinfo("Éxito", f"Auditoría exportada: {ruta}")
+
 class LoginWindow:
     def __init__(self, master, usuario_model, logger, on_success):
         self.master = master
@@ -1280,20 +1423,14 @@ class MainWindow:
     def crear_interfaz(self):
         """Crea la interfaz principal"""
         try:
-            # Crear tabview
-            self.tabview = ct.CTkTabview(self.master, fg_color="#000000")
-            self.tabview.pack(fill="both", expand=True, padx=40, pady=20)
-            
-            # Interfaz específica para superadmin
             if self.rol == "superadmin":
-                self._crear_interfaz_superadmin()
+                self._crear_interfaz_superadmin_menu_lateral()
             else:
+                # Crear tabview
+                self.tabview = ct.CTkTabview(self.master, fg_color="#000000")
+                self.tabview.pack(fill="both", expand=True, padx=40, pady=20)
                 self._crear_interfaz_normal()
-            
-            # Establecer pestaña inicial
-            if self.rol == "superadmin":
-                self.tabview.set("Gestión de Usuarios")
-            else:
+                # Establecer pestaña inicial
                 self.tabview.set("Escáner")
         except Exception as e:
             try:
@@ -1305,25 +1442,502 @@ class MainWindow:
                 print(f"Error creando interfaz: {str(e)}")
             raise e
     
-    def _crear_interfaz_superadmin(self):
-        """Crea la interfaz específica para superadmin"""
-        try:
-            # Pestaña Gestión de Usuarios
-            self.tabview.add("Gestión de Usuarios")
-            self._configurar_tab_gestion_usuarios(self.tabview.tab("Gestión de Usuarios"))
-            
-            # Pestaña Base de Datos
-            self.tabview.add("Base de Datos")
-            self._configurar_tab_base_datos(self.tabview.tab("Base de Datos"))
-        except Exception as e:
-            try:
-                if hasattr(self, 'logger') and self.logger:
-                    self.logger.error(f"Error creando interfaz superadmin: {str(e)}")
-                else:
-                    print(f"Error creando interfaz superadmin: {str(e)}")
-            except:
-                print(f"Error creando interfaz superadmin: {str(e)}")
-            raise e
+    def _crear_interfaz_superadmin_menu_lateral(self):
+        # Frame principal horizontal
+        main_frame = ct.CTkFrame(self.master, fg_color="#000000")
+        main_frame.pack(fill="both", expand=True, padx=40, pady=20)
+        # Menú lateral
+        menu_frame = ct.CTkFrame(main_frame, fg_color="#111111", width=180)
+        menu_frame.pack(side="left", fill="y", padx=(0, 20), pady=10)
+        # Panel de contenido
+        self.panel_contenido = ct.CTkFrame(main_frame, fg_color="#000000")
+        self.panel_contenido.pack(side="right", fill="both", expand=True)
+        # Botones del menú
+        botones = [
+            ("Dashboard", self.mostrar_dashboard),
+            ("Auditoría", self.mostrar_auditoria),
+            ("Usuarios", self.mostrar_gestion_usuarios),
+            ("Ítems", self.mostrar_items),
+            ("Backups", self.mostrar_backups),
+            ("Configuración", self.mostrar_configuracion),
+            ("Cerrar sesión", self.cerrar_sesion)
+        ]
+        for texto, comando in botones:
+            ct.CTkButton(
+                menu_frame,
+                text=texto,
+                command=comando,
+                fg_color="#00FFAA" if texto != "Cerrar sesión" else "#FF3333",
+                text_color="#000000" if texto != "Cerrar sesión" else "#FFFFFF",
+                font=("Segoe UI", 13, "bold"),
+                width=160,
+                height=36,
+                corner_radius=10,
+                hover_color="#55DDFF" if texto != "Cerrar sesión" else "#FF6666",
+                border_width=0
+            ).pack(pady=8)
+        # Mostrar dashboard por defecto
+        self.mostrar_dashboard()
+
+    def limpiar_panel_contenido(self):
+        for widget in self.panel_contenido.winfo_children():
+            widget.destroy()
+
+    def mostrar_dashboard(self):
+        self.limpiar_panel_contenido()
+        import datetime
+        from tkinter import ttk
+        import matplotlib.pyplot as plt
+        from PIL import Image
+        import io
+        # Scrollable frame para dashboard
+        scroll_frame = ct.CTkScrollableFrame(self.panel_contenido, fg_color="#000000", width=1200, height=900)
+        scroll_frame.pack(fill="both", expand=True)
+        # Título
+        ct.CTkLabel(scroll_frame, text="Dashboard", font=("Segoe UI", 22, "bold"), text_color="#00FFAA").pack(pady=(20, 10))
+        # Filtro de usuario (lista desplegable)
+        usuarios_res = self.db_manager.execute_query("SELECT usuario FROM usuarios WHERE estado = 'activo' ORDER BY usuario ASC")
+        usuarios_lista = [u['usuario'] for u in usuarios_res]
+        usuarios_lista.insert(0, "Todos")
+        if not hasattr(self, 'dashboard_usuario_var'):
+            self.dashboard_usuario_var = ct.StringVar(value="Todos")
+        filtro_frame = ct.CTkFrame(scroll_frame, fg_color="#111111")
+        filtro_frame.pack(pady=(0, 10), padx=20, fill="x")
+        ct.CTkLabel(filtro_frame, text="Filtrar por usuario:", text_color="#00FFAA", font=("Segoe UI", 13, "bold")).pack(side="left", padx=(10, 8))
+        usuario_menu = ct.CTkOptionMenu(filtro_frame, variable=self.dashboard_usuario_var, values=usuarios_lista, width=200, fg_color="#000000", text_color="#00FFAA", font=("Segoe UI", 13))
+        usuario_menu.pack(side="left")
+        def actualizar_dashboard_usuario(*args):
+            self.mostrar_dashboard()
+        self.dashboard_usuario_var.trace_add('write', lambda *args: actualizar_dashboard_usuario())
+        usuario_seleccionado = self.dashboard_usuario_var.get()
+        filtro_usuario = None if usuario_seleccionado == "Todos" else usuario_seleccionado
+        # KPIs y datos agrupados para la semana
+        hoy = datetime.date.today()
+        dias = [(hoy - datetime.timedelta(days=i)) for i in range(6, -1, -1)]
+        dias_str = [d.strftime('%Y-%m-%d') for d in dias]
+        # Capturas y consultas por día (una sola consulta por tabla)
+        if filtro_usuario:
+            capturas_semana = self.db_manager.execute_query(
+                """
+                SELECT to_char(fecha::date, 'YYYY-MM-DD') as dia, COUNT(*) as total
+                FROM capturas
+                WHERE fecha::date >= %s AND fecha::date <= %s AND usuario = %s
+                GROUP BY dia
+                ORDER BY dia
+                """, (dias_str[0], dias_str[-1], filtro_usuario))
+            consultas_semana = self.db_manager.execute_query(
+                """
+                SELECT to_char(fecha_hora::date, 'YYYY-MM-DD') as dia, COUNT(*) as total
+                FROM consultas
+                WHERE fecha_hora::date >= %s AND fecha_hora::date <= %s AND usuario = %s
+                GROUP BY dia
+                ORDER BY dia
+                """, (dias_str[0], dias_str[-1], filtro_usuario))
+        else:
+            capturas_semana = self.db_manager.execute_query(
+                """
+                SELECT to_char(fecha::date, 'YYYY-MM-DD') as dia, COUNT(*) as total
+                FROM capturas
+                WHERE fecha::date >= %s AND fecha::date <= %s
+                GROUP BY dia
+                ORDER BY dia
+                """, (dias_str[0], dias_str[-1]))
+            consultas_semana = self.db_manager.execute_query(
+                """
+                SELECT to_char(fecha_hora::date, 'YYYY-MM-DD') as dia, COUNT(*) as total
+                FROM consultas
+                WHERE fecha_hora::date >= %s AND fecha_hora::date <= %s
+                GROUP BY dia
+                ORDER BY dia
+                """, (dias_str[0], dias_str[-1]))
+        capturas_por_dia = [0]*7
+        consultas_por_dia = [0]*7
+        dia_idx = {d: i for i, d in enumerate(dias_str)}
+        for row in capturas_semana:
+            if row['dia'] in dia_idx:
+                capturas_por_dia[dia_idx[row['dia']]] = row['total']
+        for row in consultas_semana:
+            if row['dia'] in dia_idx:
+                consultas_por_dia[dia_idx[row['dia']]] = row['total']
+        # KPIs agrupados
+        if filtro_usuario:
+            usuarios_activos = 1
+            capturas_dia = capturas_por_dia[-1]
+            consultas_dia = consultas_por_dia[-1]
+            items_totales = self.db_manager.execute_query("SELECT COUNT(DISTINCT item) FROM capturas WHERE usuario = %s", (filtro_usuario,))[0]["count"]
+            items_sin_resultado = self.db_manager.execute_query("SELECT COUNT(*) FROM items WHERE resultado IS NULL OR resultado = ''")[0]["count"]
+        else:
+            usuarios_activos = self.db_manager.execute_query("SELECT COUNT(*) FROM usuarios WHERE estado = 'activo'")[0]["count"]
+            capturas_dia = capturas_por_dia[-1]
+            consultas_dia = consultas_por_dia[-1]
+            items_totales = self.db_manager.execute_query("SELECT COUNT(*) FROM items")[0]["count"]
+            items_sin_resultado = self.db_manager.execute_query("SELECT COUNT(*) FROM items WHERE resultado IS NULL OR resultado = ''")[0]["count"]
+        kpi_frame = ct.CTkFrame(scroll_frame, fg_color="#111111")
+        kpi_frame.pack(pady=10, padx=20, fill="x")
+        kpis = [
+            ("Usuarios activos" if not filtro_usuario else "Usuario seleccionado", usuarios_activos),
+            ("Capturas del día", capturas_dia),
+            ("Consultas del día", consultas_dia),
+            ("Ítems totales", items_totales),
+            ("Ítems sin resultado", items_sin_resultado)
+        ]
+        for i, (label, valor) in enumerate(kpis):
+            ct.CTkLabel(kpi_frame, text=label, font=("Segoe UI", 14, "bold"), text_color="#00FFAA").grid(row=0, column=i, padx=18, pady=8)
+            ct.CTkLabel(kpi_frame, text=str(valor), font=("Segoe UI", 22, "bold"), text_color="#FFFFFF").grid(row=1, column=i, padx=18, pady=8)
+        # Gráfica 1: Actividad de capturas y consultas por día (última semana)
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.set_facecolor('#000000')
+        fig.patch.set_facecolor('#000000')
+        line1 = ax.plot(dias_str, capturas_por_dia, marker='o', label='Capturas', color='#00FFAA', linewidth=2.5, markerfacecolor='#00FFAA', markeredgewidth=0)
+        line2 = ax.plot(dias_str, consultas_por_dia, marker='s', label='Consultas', color='#55DDFF', linewidth=2.5, markerfacecolor='#55DDFF', markeredgewidth=0)
+        for i, v in enumerate(capturas_por_dia):
+            ax.text(i, v+0.2, str(v), color='#00FFAA', fontweight='bold', ha='center', fontsize=11, fontname='Segoe UI')
+        for i, v in enumerate(consultas_por_dia):
+            ax.text(i, v-0.8, str(v), color='#55DDFF', fontweight='bold', ha='center', fontsize=11, fontname='Segoe UI')
+        ax.set_title('Actividad de la última semana', fontsize=17, color='#00FFAA', pad=15, fontname='Segoe UI')
+        ax.set_xlabel('Día', fontsize=14, color='#00FFAA', fontname='Segoe UI')
+        ax.set_ylabel('Cantidad', fontsize=14, color='#00FFAA', fontname='Segoe UI')
+        ax.tick_params(axis='x', colors='#FFFFFF', labelsize=11)
+        ax.tick_params(axis='y', colors='#FFFFFF', labelsize=11)
+        ax.spines['bottom'].set_color('#00FFAA')
+        ax.spines['left'].set_color('#00FFAA')
+        ax.spines['top'].set_color('#000000')
+        ax.spines['right'].set_color('#000000')
+        ax.legend(facecolor='#111111', edgecolor='#111111', fontsize=12, loc='upper left', labelcolor='#00FFAA')
+        ax.grid(True, linestyle='--', alpha=0.18, color='#55DDFF')
+        plt.xticks(rotation=30)
+        plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', facecolor=fig.get_facecolor())
+        plt.close(fig)
+        buf.seek(0)
+        img = Image.open(buf)
+        ctk_img = ct.CTkImage(light_image=img, dark_image=img, size=img.size)
+        label_img = ct.CTkLabel(scroll_frame, text="", image=ctk_img)
+        label_img.image = ctk_img
+        label_img.pack(pady=28)
+        def abrir_grafica1_interactiva():
+            import matplotlib.pyplot as plt
+            import mplcursors
+            fig, ax = plt.subplots(figsize=(8, 4))
+            ax.set_facecolor('#000000')
+            fig.patch.set_facecolor('#000000')
+            line1 = ax.plot(dias_str, capturas_por_dia, marker='o', label='Capturas', color='#00FFAA', linewidth=2.5, markerfacecolor='#00FFAA', markeredgewidth=0)
+            line2 = ax.plot(dias_str, consultas_por_dia, marker='s', label='Consultas', color='#55DDFF', linewidth=2.5, markerfacecolor='#55DDFF', markeredgewidth=0)
+            ax.set_title('Actividad de la última semana', fontsize=17, color='#00FFAA', pad=15, fontname='Segoe UI')
+            ax.set_xlabel('Día', fontsize=14, color='#00FFAA', fontname='Segoe UI')
+            ax.set_ylabel('Cantidad', fontsize=14, color='#00FFAA', fontname='Segoe UI')
+            ax.tick_params(axis='x', colors='#FFFFFF', labelsize=11)
+            ax.tick_params(axis='y', colors='#FFFFFF', labelsize=11)
+            ax.spines['bottom'].set_color('#00FFAA')
+            ax.spines['left'].set_color('#00FFAA')
+            ax.spines['top'].set_color('#000000')
+            ax.spines['right'].set_color('#000000')
+            ax.legend(facecolor='#111111', edgecolor='#111111', fontsize=12, loc='upper left', labelcolor='#00FFAA')
+            ax.grid(True, linestyle='--', alpha=0.18, color='#55DDFF')
+            plt.xticks(rotation=30)
+            mplcursors.cursor(line1, hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Capturas: {capturas_por_dia[int(sel.index)]}\nDía: {dias_str[int(sel.index)]}"))
+            mplcursors.cursor(line2, hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Consultas: {consultas_por_dia[int(sel.index)]}\nDía: {dias_str[int(sel.index)]}"))
+            plt.show()
+        ct.CTkButton(scroll_frame, text="Ver interactivo", command=abrir_grafica1_interactiva, fg_color="#00FFAA", text_color="#000000", width=180, height=32, corner_radius=10).pack(pady=(0, 28))
+        # Gráfica 2: Actividad por usuario (solo si no hay filtro de usuario)
+        if not filtro_usuario:
+            top_usuarios = self.db_manager.execute_query(
+                """
+                SELECT usuario, COUNT(*) as total
+                FROM capturas
+                WHERE fecha >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY usuario
+                ORDER BY total DESC
+                LIMIT 5
+                """
+            )
+            usuarios_top = [r["usuario"] for r in top_usuarios]
+            totales_top = [r["total"] for r in top_usuarios]
+            if usuarios_top:
+                fig3, ax3 = plt.subplots(figsize=(7, 4))
+                ax3.set_facecolor('#000000')
+                fig3.patch.set_facecolor('#000000')
+                bars = ax3.bar(usuarios_top, totales_top, color="#55DDFF", edgecolor="#00FFAA", width=0.6)
+                for bar in bars:
+                    height = bar.get_height()
+                    y_text = min(height + 0.3, ax3.get_ylim()[1] - 0.2)
+                    ax3.text(bar.get_x() + bar.get_width()/2, y_text, str(int(height)), ha='center', color='#55DDFF', fontweight='bold', fontsize=12, fontname='Segoe UI', clip_on=True)
+                ax3.set_title('Top 5 usuarios por capturas (últimos 30 días)', fontsize=15, color='#00FFAA', pad=10, fontname='Segoe UI')
+                ax3.set_xlabel('Usuario', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+                ax3.set_ylabel('Capturas', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+                ax3.tick_params(axis='x', colors='#FFFFFF', labelsize=11)
+                ax3.tick_params(axis='y', colors='#FFFFFF', labelsize=11)
+                ax3.spines['bottom'].set_color('#00FFAA')
+                ax3.spines['left'].set_color('#00FFAA')
+                ax3.spines['top'].set_color('#000000')
+                ax3.spines['right'].set_color('#000000')
+                ax3.grid(True, linestyle='--', alpha=0.18, color='#55DDFF', axis='y')
+                plt.tight_layout(pad=2)
+                # Tooltips para barras
+                mplcursors.cursor(bars, hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Usuario: {usuarios_top[int(sel.index)]}\nCapturas: {totales_top[int(sel.index)]}"))
+                buf3 = io.BytesIO()
+                plt.savefig(buf3, format='png', bbox_inches='tight', facecolor=fig3.get_facecolor())
+                plt.close(fig3)
+                buf3.seek(0)
+                img3 = Image.open(buf3)
+                ctk_img3 = ct.CTkImage(light_image=img3, dark_image=img3, size=img3.size)
+                label_img3 = ct.CTkLabel(scroll_frame, text="", image=ctk_img3)
+                label_img3.image = ctk_img3
+                label_img3.pack(pady=28)
+                def abrir_grafica3_interactiva():
+                    import matplotlib.pyplot as plt
+                    import mplcursors
+                    fig, ax = plt.subplots(figsize=(7, 4))
+                    ax.set_facecolor('#000000')
+                    fig.patch.set_facecolor('#000000')
+                    bars = ax.bar(usuarios_top, totales_top, color="#55DDFF", edgecolor="#00FFAA", width=0.6)
+                    ax.set_title('Top 5 usuarios por capturas (últimos 30 días)', fontsize=15, color='#00FFAA', pad=10, fontname='Segoe UI')
+                    ax.set_xlabel('Usuario', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+                    ax.set_ylabel('Capturas', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+                    ax.tick_params(axis='x', colors='#FFFFFF', labelsize=11)
+                    ax.tick_params(axis='y', colors='#FFFFFF', labelsize=11)
+                    ax.spines['bottom'].set_color('#00FFAA')
+                    ax.spines['left'].set_color('#00FFAA')
+                    ax.spines['top'].set_color('#000000')
+                    ax.spines['right'].set_color('#000000')
+                    ax.grid(True, linestyle='--', alpha=0.18, color='#55DDFF', axis='y')
+                    mplcursors.cursor(bars, hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Usuario: {usuarios_top[int(sel.index)]}\nCapturas: {totales_top[int(sel.index)]}"))
+                    plt.tight_layout(pad=2)
+                    plt.show()
+                ct.CTkButton(scroll_frame, text="Ver interactivo", command=abrir_grafica3_interactiva, fg_color="#00FFAA", text_color="#000000", width=180, height=32, corner_radius=10).pack(pady=(0, 28))
+        # Gráfica 3: Top 5 usuarios por consultas (solo si no hay filtro de usuario)
+        if not filtro_usuario:
+            top_usuarios_consultas = self.db_manager.execute_query(
+                """
+                SELECT usuario, COUNT(*) as total
+                FROM consultas
+                WHERE fecha_hora >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY usuario
+                ORDER BY total DESC
+                LIMIT 5
+                """
+            )
+            usuarios_top_c = [r["usuario"] for r in top_usuarios_consultas]
+            totales_top_c = [r["total"] for r in top_usuarios_consultas]
+            if usuarios_top_c:
+                fig4, ax4 = plt.subplots(figsize=(7, 4))
+                ax4.set_facecolor('#000000')
+                fig4.patch.set_facecolor('#000000')
+                bars = ax4.bar(usuarios_top_c, totales_top_c, color="#00FFAA", edgecolor="#55DDFF", width=0.6)
+                for bar in bars:
+                    height = bar.get_height()
+                    y_text = min(height + 0.3, ax4.get_ylim()[1] - 0.2)
+                    ax4.text(bar.get_x() + bar.get_width()/2, y_text, str(int(height)), ha='center', color='#00FFAA', fontweight='bold', fontsize=12, fontname='Segoe UI', clip_on=True)
+                ax4.set_title('Usuarios con mayor actividad de consultas (últimos 30 días)', fontsize=15, color='#00FFAA', pad=10, fontname='Segoe UI')
+                ax4.set_xlabel('Usuario', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+                ax4.set_ylabel('Consultas', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+                ax4.tick_params(axis='x', colors='#FFFFFF', labelsize=11)
+                ax4.tick_params(axis='y', colors='#FFFFFF', labelsize=11)
+                ax4.spines['bottom'].set_color('#00FFAA')
+                ax4.spines['left'].set_color('#00FFAA')
+                ax4.spines['top'].set_color('#000000')
+                ax4.spines['right'].set_color('#000000')
+                ax4.grid(True, linestyle='--', alpha=0.18, color='#55DDFF', axis='y')
+                plt.tight_layout(pad=2)
+                # Tooltips para barras
+                mplcursors.cursor(bars, hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Usuario: {usuarios_top_c[int(sel.index)]}\nConsultas: {totales_top_c[int(sel.index)]}"))
+                buf4 = io.BytesIO()
+                plt.savefig(buf4, format='png', bbox_inches='tight', facecolor=fig4.get_facecolor())
+                plt.close(fig4)
+                buf4.seek(0)
+                img4 = Image.open(buf4)
+                ctk_img4 = ct.CTkImage(light_image=img4, dark_image=img4, size=img4.size)
+                label_img4 = ct.CTkLabel(scroll_frame, text="", image=ctk_img4)
+                label_img4.image = ctk_img4
+                label_img4.pack(pady=28)
+                def abrir_grafica4_interactiva():
+                    import matplotlib.pyplot as plt
+                    import mplcursors
+                    fig, ax = plt.subplots(figsize=(7, 4))
+                    ax.set_facecolor('#000000')
+                    fig.patch.set_facecolor('#000000')
+                    bars = ax.bar(usuarios_top_c, totales_top_c, color="#00FFAA", edgecolor="#55DDFF", width=0.6)
+                    ax.set_title('Usuarios con mayor actividad de consultas (últimos 30 días)', fontsize=15, color='#00FFAA', pad=10, fontname='Segoe UI')
+                    ax.set_xlabel('Usuario', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+                    ax.set_ylabel('Consultas', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+                    ax.tick_params(axis='x', colors='#FFFFFF', labelsize=11)
+                    ax.tick_params(axis='y', colors='#FFFFFF', labelsize=11)
+                    ax.spines['bottom'].set_color('#00FFAA')
+                    ax.spines['left'].set_color('#00FFAA')
+                    ax.spines['top'].set_color('#000000')
+                    ax.spines['right'].set_color('#000000')
+                    ax.grid(True, linestyle='--', alpha=0.18, color='#55DDFF', axis='y')
+                    mplcursors.cursor(bars, hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Usuario: {usuarios_top_c[int(sel.index)]}\nConsultas: {totales_top_c[int(sel.index)]}"))
+                    plt.tight_layout(pad=2)
+                    plt.show()
+                ct.CTkButton(scroll_frame, text="Ver interactivo", command=abrir_grafica4_interactiva, fg_color="#00FFAA", text_color="#000000", width=180, height=32, corner_radius=10).pack(pady=(0, 28))
+        # Gráfica 4: Evolución mensual de capturas y consultas (últimos 12 meses)
+        meses = [(hoy.replace(day=1) - datetime.timedelta(days=30*i)).replace(day=1) for i in range(11, -1, -1)]
+        meses_str = [m.strftime('%Y-%m') for m in meses]
+        if filtro_usuario:
+            capturas_mes = self.db_manager.execute_query(
+                """
+                SELECT to_char(fecha::date, 'YYYY-MM') as mes, COUNT(*) as total
+                FROM capturas
+                WHERE fecha::date >= %s AND usuario = %s
+                GROUP BY mes
+                ORDER BY mes
+                """, (meses_str[0] + '-01', filtro_usuario))
+            consultas_mes = self.db_manager.execute_query(
+                """
+                SELECT to_char(fecha_hora::date, 'YYYY-MM') as mes, COUNT(*) as total
+                FROM consultas
+                WHERE fecha_hora::date >= %s AND usuario = %s
+                GROUP BY mes
+                ORDER BY mes
+                """, (meses_str[0] + '-01', filtro_usuario))
+        else:
+            capturas_mes = self.db_manager.execute_query(
+                """
+                SELECT to_char(fecha::date, 'YYYY-MM') as mes, COUNT(*) as total
+                FROM capturas
+                WHERE fecha::date >= %s
+                GROUP BY mes
+                ORDER BY mes
+                """, (meses_str[0] + '-01',))
+            consultas_mes = self.db_manager.execute_query(
+                """
+                SELECT to_char(fecha_hora::date, 'YYYY-MM') as mes, COUNT(*) as total
+                FROM consultas
+                WHERE fecha_hora::date >= %s
+                GROUP BY mes
+                ORDER BY mes
+                """, (meses_str[0] + '-01',))
+        capturas_por_mes = [0]*12
+        consultas_por_mes = [0]*12
+        mes_idx = {m: i for i, m in enumerate(meses_str)}
+        for row in capturas_mes:
+            if row['mes'] in mes_idx:
+                capturas_por_mes[mes_idx[row['mes']]] = row['total']
+        for row in consultas_mes:
+            if row['mes'] in mes_idx:
+                consultas_por_mes[mes_idx[row['mes']]] = row['total']
+        fig5, ax5 = plt.subplots(figsize=(10, 4))
+        ax5.set_facecolor('#000000')
+        fig5.patch.set_facecolor('#000000')
+        ax5.plot(meses_str, capturas_por_mes, marker='o', label='Capturas', color='#00FFAA', linewidth=2.5, markerfacecolor='#00FFAA', markeredgewidth=0)
+        ax5.plot(meses_str, consultas_por_mes, marker='s', label='Consultas', color='#55DDFF', linewidth=2.5, markerfacecolor='#55DDFF', markeredgewidth=0)
+        for i, v in enumerate(capturas_por_mes):
+            ax5.text(i, v+0.2, str(v), color='#00FFAA', fontweight='bold', ha='center', fontsize=10, fontname='Segoe UI')
+        for i, v in enumerate(consultas_por_mes):
+            ax5.text(i, v-0.8, str(v), color='#55DDFF', fontweight='bold', ha='center', fontsize=10, fontname='Segoe UI')
+        ax5.set_title('Evolución mensual de capturas y consultas (últimos 12 meses)', fontsize=15, color='#00FFAA', pad=10, fontname='Segoe UI')
+        ax5.set_xlabel('Mes', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+        ax5.set_ylabel('Cantidad', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+        ax5.tick_params(axis='x', colors='#FFFFFF', labelsize=10)
+        ax5.tick_params(axis='y', colors='#FFFFFF', labelsize=10)
+        ax5.spines['bottom'].set_color('#00FFAA')
+        ax5.spines['left'].set_color('#00FFAA')
+        ax5.spines['top'].set_color('#000000')
+        ax5.spines['right'].set_color('#000000')
+        ax5.legend(facecolor='#111111', edgecolor='#111111', fontsize=12, loc='upper left', labelcolor='#00FFAA')
+        ax5.grid(True, linestyle='--', alpha=0.18, color='#55DDFF')
+        plt.xticks(rotation=30)
+        plt.tight_layout()
+        buf5 = io.BytesIO()
+        plt.savefig(buf5, format='png', bbox_inches='tight', facecolor=fig5.get_facecolor())
+        plt.close(fig5)
+        buf5.seek(0)
+        img5 = Image.open(buf5)
+        ctk_img5 = ct.CTkImage(light_image=img5, dark_image=img5, size=img5.size)
+        label_img5 = ct.CTkLabel(scroll_frame, text="", image=ctk_img5)
+        label_img5.image = ctk_img5
+        label_img5.pack(pady=28)
+        def abrir_grafica5_interactiva():
+            import matplotlib.pyplot as plt
+            import mplcursors
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.set_facecolor('#000000')
+            fig.patch.set_facecolor('#000000')
+            l1 = ax.plot(meses_str, capturas_por_mes, marker='o', label='Capturas', color='#00FFAA', linewidth=2.5, markerfacecolor='#00FFAA', markeredgewidth=0)
+            l2 = ax.plot(meses_str, consultas_por_mes, marker='s', label='Consultas', color='#55DDFF', linewidth=2.5, markerfacecolor='#55DDFF', markeredgewidth=0)
+            ax.set_title('Evolución mensual de capturas y consultas (últimos 12 meses)', fontsize=15, color='#00FFAA', pad=10, fontname='Segoe UI')
+            ax.set_xlabel('Mes', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+            ax.set_ylabel('Cantidad', fontsize=13, color='#00FFAA', fontname='Segoe UI')
+            ax.tick_params(axis='x', colors='#FFFFFF', labelsize=10)
+            ax.tick_params(axis='y', colors='#FFFFFF', labelsize=10)
+            ax.spines['bottom'].set_color('#00FFAA')
+            ax.spines['left'].set_color('#00FFAA')
+            ax.spines['top'].set_color('#000000')
+            ax.spines['right'].set_color('#000000')
+            ax.legend(facecolor='#111111', edgecolor='#111111', fontsize=12, loc='upper left', labelcolor='#00FFAA')
+            ax.grid(True, linestyle='--', alpha=0.18, color='#55DDFF')
+            plt.xticks(rotation=30)
+            mplcursors.cursor(l1, hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Capturas: {capturas_por_mes[int(sel.index)]}\nMes: {meses_str[int(sel.index)]}"))
+            mplcursors.cursor(l2, hover=True).connect("add", lambda sel: sel.annotation.set_text(f"Consultas: {consultas_por_mes[int(sel.index)]}\nMes: {meses_str[int(sel.index)]}"))
+            plt.tight_layout()
+            plt.show()
+        ct.CTkButton(scroll_frame, text="Ver interactivo", command=abrir_grafica5_interactiva, fg_color="#00FFAA", text_color="#000000", width=180, height=32, corner_radius=10).pack(pady=(0, 28))
+        # Gráfica 5: Pie chart de distribución CUMPLE/NO CUMPLE para el usuario seleccionado
+        if filtro_usuario:
+            pie_data = self.db_manager.execute_query(
+                """
+                SELECT cumple, COUNT(*) as total
+                FROM capturas
+                WHERE usuario = %s
+                GROUP BY cumple
+                """, (filtro_usuario,))
+            labels = [r['cumple'] for r in pie_data]
+            sizes = [r['total'] for r in pie_data]
+            if sizes:
+                fig6, ax6 = plt.subplots(figsize=(5, 5))
+                colors = ['#00FFAA' if l == 'CUMPLE' else '#FF3333' for l in labels]
+                wedges, texts, autotexts = ax6.pie(sizes, labels=labels, autopct='%1.0f%%', colors=colors, textprops={'color':'#FFFFFF', 'fontsize':13, 'fontname':'Segoe UI'}, startangle=90, wedgeprops={'edgecolor':'#000000'})
+                ax6.set_title('Distribución CUMPLE/NO CUMPLE', fontsize=15, color='#00FFAA', fontname='Segoe UI')
+                fig6.patch.set_facecolor('#000000')
+                plt.tight_layout()
+                buf6 = io.BytesIO()
+                plt.savefig(buf6, format='png', bbox_inches='tight', facecolor=fig6.get_facecolor())
+                plt.close(fig6)
+                buf6.seek(0)
+                img6 = Image.open(buf6)
+                ctk_img6 = ct.CTkImage(light_image=img6, dark_image=img6, size=img6.size)
+                label_img6 = ct.CTkLabel(scroll_frame, text="", image=ctk_img6)
+                label_img6.image = ctk_img6
+                label_img6.pack(pady=28)
+        # Últimos 5 errores del sistema (de auditoría)
+        errores = self.db_manager.execute_query(
+            "SELECT usuario, detalles, fecha FROM auditoria WHERE accion ILIKE '%error%' ORDER BY fecha DESC LIMIT 5"
+        )
+        ct.CTkLabel(scroll_frame, text="Errores recientes", font=("Segoe UI", 16, "bold"), text_color="#FF3333").pack(pady=(30, 5))
+        table_frame = ct.CTkFrame(scroll_frame, fg_color="#000000")
+        table_frame.pack(padx=20, pady=(0, 20), fill="x")
+        columns = ("Usuario", "Detalles", "Fecha")
+        tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=5)
+        for col in columns:
+            tree.heading(col, text=col)
+            tree.column(col, width=180, anchor="center")
+        for e in errores:
+            tree.insert("", "end", values=(e["usuario"], e["detalles"], str(e["fecha"])))
+        tree.pack(fill="x")
+
+    def mostrar_auditoria(self):
+        self.limpiar_panel_contenido()
+        self._crear_tabla_auditoria(self.panel_contenido)
+
+    def mostrar_gestion_usuarios(self):
+        self.limpiar_panel_contenido()
+        self._configurar_tab_gestion_usuarios(self.panel_contenido)
+
+    def mostrar_items(self):
+        self.limpiar_panel_contenido()
+        self._crear_tabla_items(self.panel_contenido)
+
+    def mostrar_backups(self):
+        self.limpiar_panel_contenido()
+        ct.CTkLabel(self.panel_contenido, text="Backups (en construcción)", font=("Segoe UI", 20, "bold"), text_color="#00FFAA").pack(pady=40)
+        # Aquí puedes agregar botones para backup y restaurar
+
+    def mostrar_configuracion(self):
+        self.limpiar_panel_contenido()
+        ct.CTkLabel(self.panel_contenido, text="Configuración (en construcción)", font=("Segoe UI", 20, "bold"), text_color="#00FFAA").pack(pady=40)
+        # Aquí puedes agregar opciones de configuración para superadmin
     
     def _crear_interfaz_normal(self):
         """Crea la interfaz normal para otros usuarios"""
@@ -1373,9 +1987,9 @@ class MainWindow:
             # Tabs para cada tabla
             tablas_tabview = ct.CTkTabview(main_frame, fg_color="#111111")
             tablas_tabview.pack(fill="both", expand=True)
-            # Usuarios (tabla de solo lectura para visualización)
-            tablas_tabview.add("Usuarios")
-            self._crear_tabla_usuarios_solo_lectura(tablas_tabview.tab("Usuarios"))
+            # Auditoría (reemplaza Usuarios solo lectura)
+            tablas_tabview.add("Auditoría")
+            self._crear_tabla_auditoria(tablas_tabview.tab("Auditoría"))
             # Ítems (nueva pestaña)
             tablas_tabview.add("Ítems")
             self._crear_tabla_items(tablas_tabview.tab("Ítems"))
@@ -1393,27 +2007,47 @@ class MainWindow:
                 print(f"Error configurando tab base de datos: {str(e)}")
             raise e
     
-    def _crear_tabla_usuarios_solo_lectura(self, parent):
-        """Crea una tabla de usuarios de solo lectura para la pestaña Base de Datos"""
+    def _crear_tabla_auditoria(self, parent):
         from tkinter import ttk
-        
-        ct.CTkLabel(
-            parent,
-            text="Vista de Usuarios (Solo Lectura)",
-            font=("Segoe UI", 16, "bold"),
-            text_color="#00FFAA"
-        ).pack(pady=(20, 20))
-        
+        import pandas as pd
+        import datetime
+        # Filtros
+        filtros_frame = ct.CTkFrame(parent, fg_color="#000000")
+        filtros_frame.pack(fill="x", padx=20, pady=(20, 10))
+        # Usuario
+        ct.CTkLabel(filtros_frame, text="Usuario:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        self.filtro_usuario_var = ct.StringVar()
+        usuario_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_usuario_var, width=120)
+        usuario_entry.pack(side="left", padx=(0, 10))
+        # Acción
+        ct.CTkLabel(filtros_frame, text="Acción:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        self.filtro_accion_var = ct.StringVar()
+        accion_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_accion_var, width=120)
+        accion_entry.pack(side="left", padx=(0, 10))
+        # Fecha desde
+        ct.CTkLabel(filtros_frame, text="Desde:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        self.filtro_fecha_desde_var = ct.StringVar()
+        desde_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_desde_var, width=100, placeholder_text="YYYY-MM-DD")
+        desde_entry.pack(side="left", padx=(0, 10))
+        # Fecha hasta
+        ct.CTkLabel(filtros_frame, text="Hasta:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        self.filtro_fecha_hasta_var = ct.StringVar()
+        hasta_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_hasta_var, width=100, placeholder_text="YYYY-MM-DD")
+        hasta_entry.pack(side="left", padx=(0, 10))
+        # Botón filtrar
+        filtrar_btn = ct.CTkButton(filtros_frame, text="Filtrar", fg_color="#00FFAA", text_color="#000000", width=80, command=self.cargar_auditoria)
+        filtrar_btn.pack(side="left", padx=(10, 0))
+        # Botón exportar
+        exportar_btn = ct.CTkButton(filtros_frame, text="Exportar a Excel", fg_color="#00AAFF", text_color="#FFFFFF", width=120, command=self.exportar_auditoria_excel)
+        exportar_btn.pack(side="left", padx=(10, 0))
+        # Tabla
         table_frame = ct.CTkFrame(parent, fg_color="#000000")
         table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        
-        columns = ("Usuario", "Rol", "Estado", "Último Acceso")
-        self.usuarios_tree_db = ttk.Treeview(table_frame, columns=columns, show="headings", height=15, selectmode="none")
-        
+        columns = ("Usuario", "Acción", "Detalles", "Fecha")
+        self.auditoria_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=18)
         for col in columns:
-            self.usuarios_tree_db.heading(col, text=col)
-            self.usuarios_tree_db.column(col, width=120, anchor="center")
-        
+            self.auditoria_tree.heading(col, text=col)
+            self.auditoria_tree.column(col, width=180, anchor="center")
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -1425,25 +2059,61 @@ class MainWindow:
                         background="#111111",
                         foreground="#00FFAA",
                         font=("Segoe UI", 10, "bold"))
-        
-        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.usuarios_tree_db.yview)
-        self.usuarios_tree_db.configure(yscrollcommand=scrollbar.set)
-        self.usuarios_tree_db.pack(side="left", fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.auditoria_tree.yview)
+        self.auditoria_tree.configure(yscrollcommand=scrollbar.set)
+        self.auditoria_tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-        
-        # Cargar datos
-        self._cargar_usuarios_en_tabla(self.usuarios_tree_db)
-        
-        # Botón refrescar
-        ct.CTkButton(
-            parent,
-            text="Refrescar",
-            command=lambda: self._cargar_usuarios_en_tabla(self.usuarios_tree_db),
-            fg_color="#00AAFF",
-            text_color="#FFFFFF",
-            width=120,
-            height=32
-        ).pack(pady=10)
+        self.cargar_auditoria()
+
+    def cargar_auditoria(self):
+        # Construir query con filtros
+        usuario = self.filtro_usuario_var.get().strip()
+        accion = self.filtro_accion_var.get().strip()
+        fecha_desde = self.filtro_fecha_desde_var.get().strip()
+        fecha_hasta = self.filtro_fecha_hasta_var.get().strip()
+        query = "SELECT usuario, accion, detalles, fecha FROM auditoria WHERE 1=1"
+        params = []
+        if usuario:
+            query += " AND usuario ILIKE %s"
+            params.append(f"%{usuario}%")
+        if accion:
+            query += " AND accion ILIKE %s"
+            params.append(f"%{accion}%")
+        if fecha_desde:
+            query += " AND fecha >= %s"
+            params.append(fecha_desde)
+        if fecha_hasta:
+            query += " AND fecha <= %s"
+            params.append(fecha_hasta + " 23:59:59")
+        query += " ORDER BY fecha DESC LIMIT 500"
+        try:
+            for item in self.auditoria_tree.get_children():
+                self.auditoria_tree.delete(item)
+            resultados = self.db_manager.execute_query(query, tuple(params))
+            for r in resultados:
+                self.auditoria_tree.insert("", "end", values=(r['usuario'], r['accion'], r['detalles'], str(r['fecha'])))
+        except Exception as e:
+            print(f"Error cargando auditoría: {e}")
+
+    def exportar_auditoria_excel(self):
+        import pandas as pd
+        from tkinter import filedialog, messagebox
+        # Obtener datos actuales de la tabla
+        rows = [self.auditoria_tree.item(item)["values"] for item in self.auditoria_tree.get_children()]
+        if not rows:
+            messagebox.showinfo("Sin datos", "No hay datos para exportar.")
+            return
+        df = pd.DataFrame(rows, columns=["Usuario", "Acción", "Detalles", "Fecha"])
+        ruta = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Archivos Excel", "*.xlsx")],
+            initialfile="auditoria.xlsx",
+            title="Guardar auditoría como..."
+        )
+        if not ruta:
+            return
+        df.to_excel(ruta, index=False)
+        messagebox.showinfo("Éxito", f"Auditoría exportada: {ruta}")
 
     def _crear_tabla_items(self, parent):
         from tkinter import ttk
@@ -2225,7 +2895,7 @@ class MainWindow:
             cal = None
 
         def exportar():
-            fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
+            fecha = cal.get_date().strftime('%Y-%m-d') if cal else None
             if not fecha:
                 messagebox.showerror("Error", "Selecciona una fecha válida.")
                 return
@@ -2482,7 +3152,7 @@ class MainWindow:
         )
         self.codigo_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
         
-        # Evento para buscar automáticamente el item cuando se
+        # Evento para buscar automáticamente el item cuando se ingresa un código de barras
         self.codigo_captura_entry.bind("<Return>", lambda e: self._buscar_item_automatico())
         
         # Item
@@ -3129,7 +3799,7 @@ class MainWindow:
             cal = None
 
         def exportar():
-            fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
+            fecha = cal.get_date().strftime('%Y-%m-d') if cal else None
             if not fecha:
                 messagebox.showerror("Error", "Selecciona una fecha válida.")
                 return
@@ -3386,7 +4056,7 @@ class MainWindow:
         )
         self.codigo_captura_entry.pack(fill="x", padx=10, pady=(0, 8))
         
-        # Evento para buscar automáticamente el item cuando se
+        # Evento para buscar automáticamente el item cuando se ingresa un código de barras
         self.codigo_captura_entry.bind("<Return>", lambda e: self._buscar_item_automatico())
         
         # Item
