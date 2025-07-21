@@ -146,6 +146,20 @@ class DatabaseManager:
                 )
             """, fetch=False)
             
+            # Tabla de auditoría avanzada
+            self.execute_query("""
+                CREATE TABLE IF NOT EXISTS auditoria (
+                    id SERIAL PRIMARY KEY,
+                    usuario VARCHAR(50) NOT NULL,
+                    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    accion VARCHAR(50) NOT NULL,
+                    modulo VARCHAR(50) NOT NULL,
+                    detalles TEXT,
+                    valor_anterior TEXT,
+                    valor_nuevo TEXT
+                )
+            """, fetch=False)
+            
             self.logger.info("Tablas creadas correctamente")
             
         except Exception as e:

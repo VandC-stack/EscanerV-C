@@ -25,7 +25,7 @@ ct.set_appearance_mode("dark")
 ct.set_default_color_theme("dark-blue")
 
 # Constantes de versión
-VERSION_ACTUAL = "0.3.3"
+VERSION_ACTUAL = "0.3.3.2"
 FECHA_COMPILACION = "2024-07-10"
 
 # Configuración de logging
@@ -42,6 +42,7 @@ from models.codigo_item import CodigoItem
 from models.captura import Captura
 from utils.logger import AppLogger
 from utils.validators import Validators
+from models.auditoria import AuditoriaLogger
 
 print("Default encoding:", sys.getdefaultencoding())
 print("Filesystem encoding:", sys.getfilesystemencoding())
@@ -67,6 +68,7 @@ class EscanerApp:
         self.usuario_model = None
         self.codigo_model = None
         self.captura_model = None
+        self.auditoria_logger = None
         
         # Variables de estado
         self.usuario_actual = None
@@ -97,6 +99,9 @@ class EscanerApp:
             
             # Inicializar logger
             self.logger = AppLogger("EscanerApp")
+            
+            # Inicializar auditoría
+            self.auditoria_logger = AuditoriaLogger(self.db_manager)
             
             # Inicializar modelos
             self.usuario_model = Usuario(self.db_manager)
@@ -164,6 +169,8 @@ class EscanerApp:
         
         try:
             self.logger.log_user_action(usuario, "Login exitoso")
+            if self.auditoria_logger:
+                self.auditoria_logger.registrar_accion(usuario, "Login exitoso", f"Rol: {rol}")
         except Exception as e:
             print(f"Error registrando login: {str(e)}")
         
@@ -229,11 +236,9 @@ class EscanerApp:
             filtro = filtro_var.get().strip().lower()
             try:
                 if filtro:
-                    # Buscar en todo el historial por coincidencia de nombre de archivo
                     query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE LOWER(archivo) LIKE %s ORDER BY fecha_carga DESC"
                     cargas = self.db_manager.execute_query(query_cargas, (f"%{filtro}%",))
                 else:
-                    # Solo mostrar las cargas del día actual
                     query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE fecha_carga::date = CURRENT_DATE ORDER BY fecha_carga DESC"
                     cargas = self.db_manager.execute_query(query_cargas)
             except Exception as e:
@@ -272,14 +277,12 @@ class EscanerApp:
             consultas = self.db_manager.execute_query(query_consultas)
         except Exception as e:
             consultas = []
-        # Tabla de consultas
         table_frame = ct.CTkFrame(main_frame, fg_color="#111111")
         table_frame.pack(fill="both", expand=True, pady=(0, 10))
         columns = ("Fecha/Hora", "Usuario", "Código de Barras", "Resultado")
         tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
         for col in columns:
             tree.heading(col, text=col)
-        # Estilo ttk para fondo oscuro y tipo Excel porque me gusta mas que el default
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -299,19 +302,16 @@ class EscanerApp:
         style.layout("Treeview", [
             ('Treeview.treearea', {'sticky': 'nswe'})
         ])
-        # Ajustar ancho de columnas
         tree.column("Fecha/Hora", width=160, anchor="center")
         tree.column("Usuario", width=100, anchor="center")
         tree.column("Código de Barras", width=220, anchor="center")
         tree.column("Resultado", width=120, anchor="center")
-        # Insertar datos con rayado
         for i, c in enumerate(consultas):
             values = (c['fecha_hora'], c['usuario'], c['codigo_barras'], c['resultado'] or "Sin resultado")
             tag = 'evenrow' if i % 2 == 0 else 'oddrow'
             tree.insert("", "end", values=values, tags=(tag,))
         tree.tag_configure('evenrow', background='#181818')
         tree.tag_configure('oddrow', background='#222222')
-        # Scrollbar
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
         tree.pack(side="left", fill="both", expand=True)
@@ -321,14 +321,12 @@ class EscanerApp:
         ct.CTkLabel(
             main_frame, text="Capturas del día:", font=("Segoe UI", 16, "bold"), text_color="#00FFAA", fg_color="#000000"
         ).pack(anchor="w", pady=(10, 5))
-        # Tabla de capturas
         capturas_frame = ct.CTkFrame(main_frame, fg_color="#111111")
         capturas_frame.pack(fill="both", expand=True, pady=(0, 10))
         columns = ("Fecha/Hora", "Usuario", "Código", "Item", "Resultado", "Motivo")
         capturas_tree = ttk.Treeview(capturas_frame, columns=columns, show="headings", height=8)
         for col in columns:
             capturas_tree.heading(col, text=col)
-        # Estilo ttk para fondo oscuro, otra vez porque me gusta mas que el default
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -348,14 +346,12 @@ class EscanerApp:
         style.layout("Treeview", [
             ('Treeview.treearea', {'sticky': 'nswe'})
         ])
-        # Ajustar ancho de columnas
         capturas_tree.column("Fecha/Hora", width=140, anchor="center")
         capturas_tree.column("Usuario", width=80, anchor="center")
         capturas_tree.column("Código", width=160, anchor="center")
         capturas_tree.column("Item", width=80, anchor="center")
         capturas_tree.column("Resultado", width=100, anchor="center")
         capturas_tree.column("Motivo", width=160, anchor="center")
-        # Consultar capturas del día
         try:
             query_capturas = "SELECT fecha, usuario, codigo, item, cumple, motivo FROM capturas WHERE fecha::date = CURRENT_DATE ORDER BY fecha DESC"
             capturas = self.db_manager.execute_query(query_capturas)
@@ -369,7 +365,6 @@ class EscanerApp:
             capturas_tree.insert("", "end", values=values, tags=(tag,))
         capturas_tree.tag_configure('evenrow', background='#181818')
         capturas_tree.tag_configure('oddrow', background='#222222')
-        # Scrollbar
         scrollbar = ttk.Scrollbar(capturas_frame, orient="vertical", command=capturas_tree.yview)
         capturas_tree.configure(yscrollcommand=scrollbar.set)
         capturas_tree.pack(side="left", fill="both", expand=True)
@@ -396,7 +391,7 @@ class EscanerApp:
             corner_radius=12,
             width=200,
             height=32,
-            command=self.mostrar_historial_cargas_y_consultas
+            command=self._mostrar_historial_cargas_y_consultas
         )
         self.historial_button.pack(pady=(0, 18))
 
@@ -529,7 +524,7 @@ class EscanerApp:
             cal = None
 
         def exportar():
-            fecha = cal.get_date().strftime('%Y-%m-d') if cal else None
+            fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
             if not fecha:
                 messagebox.showerror("Error", "Selecciona una fecha válida.")
                 return
@@ -570,7 +565,6 @@ class EscanerApp:
     def cerrar_sesion(self):
         """Cierra la sesión y regresa a la pantalla de login"""
         try:
-            self.logger.log_user_action(self.usuario, "Cerrar sesión")
             self.master.destroy()
             app = EscanerApp()
             app.ejecutar()
@@ -924,6 +918,8 @@ class EscanerApp:
         self.codigo_captura_var.set("")
         self.item_captura_var.set("")
         self.codigo_captura_entry.focus_set()
+        if self.auditoria_logger:
+            self.auditoria_logger.registrar_accion(self.usuario, "Guardar captura", f"Código: {codigo}, Item: {item}, Cumple: {cumple}, Motivo: {motivo}")
     
     def subir_capturas_offline(self):
         """Sube las capturas pendientes del archivo local a la base de datos"""
@@ -1144,43 +1140,76 @@ class EscanerApp:
         from tkinter import ttk
         import pandas as pd
         import datetime
-        # Filtros
+        try:
+            from tkcalendar import DateEntry
+            has_calendar = True
+        except ImportError:
+            has_calendar = False
+        # Filtros avanzados
         filtros_frame = ct.CTkFrame(parent, fg_color="#000000")
         filtros_frame.pack(fill="x", padx=20, pady=(20, 10))
-        # Usuario
+        # Usuario (desplegable)
+        usuarios_aud = self.db_manager.execute_query("SELECT DISTINCT usuario FROM auditoria ORDER BY usuario ASC")
+        usuarios_lista = [u['usuario'] for u in usuarios_aud]
+        usuarios_lista.insert(0, "Todos")
+        self.filtro_usuario_var = ct.StringVar(value="Todos")
         ct.CTkLabel(filtros_frame, text="Usuario:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
-        self.filtro_usuario_var = ct.StringVar()
-        usuario_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_usuario_var, width=120)
-        usuario_entry.pack(side="left", padx=(0, 10))
-        # Acción
+        usuario_menu = ct.CTkOptionMenu(filtros_frame, variable=self.filtro_usuario_var, values=usuarios_lista, width=120, fg_color="#111111", text_color="#00FFAA")
+        usuario_menu.pack(side="left", padx=(0, 10))
+        # Acción (desplegable)
+        acciones_aud = self.db_manager.execute_query("SELECT DISTINCT accion FROM auditoria ORDER BY accion ASC")
+        acciones_lista = [a['accion'] for a in acciones_aud]
+        acciones_lista.insert(0, "Todas")
+        self.filtro_accion_var = ct.StringVar(value="Todas")
         ct.CTkLabel(filtros_frame, text="Acción:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
-        self.filtro_accion_var = ct.StringVar()
-        accion_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_accion_var, width=120)
-        accion_entry.pack(side="left", padx=(0, 10))
+        accion_menu = ct.CTkOptionMenu(filtros_frame, variable=self.filtro_accion_var, values=acciones_lista, width=120, fg_color="#111111", text_color="#00FFAA")
+        accion_menu.pack(side="left", padx=(0, 10))
         # Fecha desde
-        ct.CTkLabel(filtros_frame, text="Desde:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
         self.filtro_fecha_desde_var = ct.StringVar()
-        desde_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_desde_var, width=100, placeholder_text="YYYY-MM-DD")
-        desde_entry.pack(side="left", padx=(0, 10))
+        ct.CTkLabel(filtros_frame, text="Desde:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        if has_calendar:
+            desde_entry = DateEntry(filtros_frame, textvariable=self.filtro_fecha_desde_var, width=12, background='#111111', foreground='#00FFAA', borderwidth=2, date_pattern='yyyy-mm-dd', font=("Segoe UI", 11))
+            desde_entry.pack(side="left", padx=(0, 10))
+        else:
+            desde_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_desde_var, width=100, placeholder_text="YYYY-MM-DD")
+            desde_entry.pack(side="left", padx=(0, 10))
         # Fecha hasta
-        ct.CTkLabel(filtros_frame, text="Hasta:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
         self.filtro_fecha_hasta_var = ct.StringVar()
-        hasta_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_hasta_var, width=100, placeholder_text="YYYY-MM-DD")
-        hasta_entry.pack(side="left", padx=(0, 10))
-        # Botón filtrar
-        filtrar_btn = ct.CTkButton(filtros_frame, text="Filtrar", fg_color="#00FFAA", text_color="#000000", width=80, command=self.cargar_auditoria)
-        filtrar_btn.pack(side="left", padx=(10, 0))
+        ct.CTkLabel(filtros_frame, text="Hasta:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        if has_calendar:
+            hasta_entry = DateEntry(filtros_frame, textvariable=self.filtro_fecha_hasta_var, width=12, background='#111111', foreground='#00FFAA', borderwidth=2, date_pattern='yyyy-mm-dd', font=("Segoe UI", 11))
+            hasta_entry.pack(side="left", padx=(0, 10))
+        else:
+            hasta_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_hasta_var, width=100, placeholder_text="YYYY-MM-DD")
+            hasta_entry.pack(side="left", padx=(0, 10))
+        # Texto libre en detalles
+        self.filtro_detalles_var = ct.StringVar()
+        ct.CTkLabel(filtros_frame, text="Buscar en detalles:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        detalles_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_detalles_var, width=160, placeholder_text="Texto libre")
+        detalles_entry.pack(side="left", padx=(0, 10))
+        # Frame para botones a la derecha
+        botones_frame = ct.CTkFrame(filtros_frame, fg_color="#000000")
+        botones_frame.pack(side="right", padx=(10, 0))
+        # Botón limpiar filtros
+        def limpiar_filtros():
+            self.filtro_usuario_var.set("Todos")
+            self.filtro_accion_var.set("Todas")
+            self.filtro_fecha_desde_var.set("")
+            self.filtro_fecha_hasta_var.set("")
+            self.filtro_detalles_var.set("")
+            self.cargar_auditoria()
+        ct.CTkButton(botones_frame, text="Limpiar filtros", command=limpiar_filtros, fg_color="#FF3333", text_color="#FFFFFF", width=120, height=32).pack(side="left", padx=(0, 8))
         # Botón exportar
-        exportar_btn = ct.CTkButton(filtros_frame, text="Exportar a Excel", fg_color="#00AAFF", text_color="#FFFFFF", width=120, command=self.exportar_auditoria_excel)
-        exportar_btn.pack(side="left", padx=(10, 0))
+        exportar_btn = ct.CTkButton(botones_frame, text="Exportar a Excel", fg_color="#00AAFF", text_color="#FFFFFF", width=120, command=self.exportar_auditoria_excel)
+        exportar_btn.pack(side="left", padx=(0, 0))
         # Tabla
         table_frame = ct.CTkFrame(parent, fg_color="#000000")
         table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        columns = ("Usuario", "Acción", "Detalles", "Fecha")
+        columns = ("Usuario", "Acción", "Módulo", "Detalles", "Valor anterior", "Valor nuevo", "Fecha")
         self.auditoria_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=18)
         for col in columns:
             self.auditoria_tree.heading(col, text=col)
-            self.auditoria_tree.column(col, width=180, anchor="center")
+            self.auditoria_tree.column(col, width=160, anchor="center")
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -1196,35 +1225,46 @@ class EscanerApp:
         self.auditoria_tree.configure(yscrollcommand=scrollbar.set)
         self.auditoria_tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+        # Actualizar tabla al cambiar cualquier filtro
+        self.filtro_usuario_var.trace_add('write', lambda *args: self.cargar_auditoria())
+        self.filtro_accion_var.trace_add('write', lambda *args: self.cargar_auditoria())
+        self.filtro_fecha_desde_var.trace_add('write', lambda *args: self.cargar_auditoria())
+        self.filtro_fecha_hasta_var.trace_add('write', lambda *args: self.cargar_auditoria())
+        self.filtro_detalles_var.trace_add('write', lambda *args: self.cargar_auditoria())
         self.cargar_auditoria()
 
     def cargar_auditoria(self):
-        # Construir query con filtros
         usuario = self.filtro_usuario_var.get().strip()
         accion = self.filtro_accion_var.get().strip()
         fecha_desde = self.filtro_fecha_desde_var.get().strip()
         fecha_hasta = self.filtro_fecha_hasta_var.get().strip()
-        query = "SELECT usuario, accion, detalles, fecha FROM auditoria WHERE 1=1"
+        detalles = self.filtro_detalles_var.get().strip()
+        query = "SELECT usuario, accion, modulo, detalles, valor_anterior, valor_nuevo, fecha FROM auditoria WHERE 1=1"
         params = []
-        if usuario:
-            query += " AND usuario ILIKE %s"
-            params.append(f"%{usuario}%")
-        if accion:
-            query += " AND accion ILIKE %s"
-            params.append(f"%{accion}%")
+        if usuario and usuario != "Todos":
+            query += " AND usuario = %s"
+            params.append(usuario)
+        if accion and accion != "Todas":
+            query += " AND accion = %s"
+            params.append(accion)
         if fecha_desde:
             query += " AND fecha >= %s"
             params.append(fecha_desde)
         if fecha_hasta:
             query += " AND fecha <= %s"
             params.append(fecha_hasta + " 23:59:59")
+        if detalles:
+            query += " AND detalles ILIKE %s"
+            params.append(f"%{detalles}%")
         query += " ORDER BY fecha DESC LIMIT 500"
         try:
             for item in self.auditoria_tree.get_children():
                 self.auditoria_tree.delete(item)
             resultados = self.db_manager.execute_query(query, tuple(params))
             for r in resultados:
-                self.auditoria_tree.insert("", "end", values=(r['usuario'], r['accion'], r['detalles'], str(r['fecha'])))
+                self.auditoria_tree.insert("", "end", values=(
+                    r['usuario'], r['accion'], r.get('modulo',''), r.get('detalles',''), r.get('valor_anterior',''), r.get('valor_nuevo',''), str(r['fecha'])
+                ))
         except Exception as e:
             print(f"Error cargando auditoría: {e}")
 
@@ -1236,7 +1276,7 @@ class EscanerApp:
         if not rows:
             messagebox.showinfo("Sin datos", "No hay datos para exportar.")
             return
-        df = pd.DataFrame(rows, columns=["Usuario", "Acción", "Detalles", "Fecha"])
+        df = pd.DataFrame(rows, columns=["Usuario", "Acción", "Módulo", "Detalles", "Valor anterior", "Valor nuevo", "Fecha"])
         ruta = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
             filetypes=[("Archivos Excel", "*.xlsx")],
@@ -1423,15 +1463,13 @@ class MainWindow:
     def crear_interfaz(self):
         """Crea la interfaz principal"""
         try:
+            # Limpiar widgets principales antes de crear la interfaz
+            for widget in self.master.winfo_children():
+                widget.destroy()
             if self.rol == "superadmin":
                 self._crear_interfaz_superadmin_menu_lateral()
             else:
-                # Crear tabview
-                self.tabview = ct.CTkTabview(self.master, fg_color="#000000")
-                self.tabview.pack(fill="both", expand=True, padx=40, pady=20)
                 self._crear_interfaz_normal()
-                # Establecer pestaña inicial
-                self.tabview.set("Escáner")
         except Exception as e:
             try:
                 if hasattr(self, 'logger') and self.logger:
@@ -1441,7 +1479,7 @@ class MainWindow:
             except:
                 print(f"Error creando interfaz: {str(e)}")
             raise e
-    
+
     def _crear_interfaz_superadmin_menu_lateral(self):
         # Frame principal horizontal
         main_frame = ct.CTkFrame(self.master, fg_color="#000000")
@@ -1482,6 +1520,27 @@ class MainWindow:
     def limpiar_panel_contenido(self):
         for widget in self.panel_contenido.winfo_children():
             widget.destroy()
+
+    def _crear_interfaz_normal(self):
+        """Crea la interfaz normal para otros usuarios (tabview robusto)"""
+        self.tabview = ct.CTkTabview(self.master, fg_color="#000000")
+        self.tabview.pack(fill="both", expand=True, padx=40, pady=20)
+        # Pestaña Escáner (todos los usuarios)
+        self.tabview.add("Escáner")
+        self._configurar_tab_escaner(self.tabview.tab("Escáner"))
+        # Pestaña Captura (solo rol captura y admin)
+        if self.rol in ["captura", "admin"]:
+            self.tabview.add("Captura de Datos")
+            self._configurar_tab_captura(self.tabview.tab("Captura de Datos"))
+        # Pestaña Configuración (solo admin)
+        if self.rol == "admin":
+            self.tabview.add("Configuración")
+            self._configurar_tab_configuracion(self.tabview.tab("Configuración"))
+        # Aquí puedes agregar más pestañas según el rol
+        # self.tabview.add("Otra sección")
+        # self._configurar_tab_otra(self.tabview.tab("Otra sección"))
+        # Establecer pestaña inicial
+        self.tabview.set("Escáner")
 
     def mostrar_dashboard(self):
         self.limpiar_panel_contenido()
@@ -1663,7 +1722,7 @@ class MainWindow:
                     height = bar.get_height()
                     y_text = min(height + 0.3, ax3.get_ylim()[1] - 0.2)
                     ax3.text(bar.get_x() + bar.get_width()/2, y_text, str(int(height)), ha='center', color='#55DDFF', fontweight='bold', fontsize=12, fontname='Segoe UI', clip_on=True)
-                ax3.set_title('Top 5 usuarios por capturas (últimos 30 días)', fontsize=15, color='#00FFAA', pad=10, fontname='Segoe UI')
+                ax3.set_title('Usuarios con mayor actividad de capturas (últimos 30 días)', fontsize=15, color='#00FFAA', pad=10, fontname='Segoe UI')
                 ax3.set_xlabel('Usuario', fontsize=13, color='#00FFAA', fontname='Segoe UI')
                 ax3.set_ylabel('Capturas', fontsize=13, color='#00FFAA', fontname='Segoe UI')
                 ax3.tick_params(axis='x', colors='#FFFFFF', labelsize=11)
@@ -1692,7 +1751,7 @@ class MainWindow:
                     ax.set_facecolor('#000000')
                     fig.patch.set_facecolor('#000000')
                     bars = ax.bar(usuarios_top, totales_top, color="#55DDFF", edgecolor="#00FFAA", width=0.6)
-                    ax.set_title('Top 5 usuarios por capturas (últimos 30 días)', fontsize=15, color='#00FFAA', pad=10, fontname='Segoe UI')
+                    ax.set_title('Top usuarios con mayor capturas (últimos 30 días)', fontsize=15, color='#00FFAA', pad=10, fontname='Segoe UI')
                     ax.set_xlabel('Usuario', fontsize=13, color='#00FFAA', fontname='Segoe UI')
                     ax.set_ylabel('Capturas', fontsize=13, color='#00FFAA', fontname='Segoe UI')
                     ax.tick_params(axis='x', colors='#FFFFFF', labelsize=11)
@@ -1930,9 +1989,92 @@ class MainWindow:
         self._crear_tabla_items(self.panel_contenido)
 
     def mostrar_backups(self):
+        import subprocess
+        from tkinter import filedialog, messagebox
+        import os
         self.limpiar_panel_contenido()
-        ct.CTkLabel(self.panel_contenido, text="Backups (en construcción)", font=("Segoe UI", 20, "bold"), text_color="#00FFAA").pack(pady=40)
-        # Aquí puedes agregar botones para backup y restaurar
+        ct.CTkLabel(self.panel_contenido, text="Backups de la Base de Datos", font=("Segoe UI", 20, "bold"), text_color="#00FFAA").pack(pady=20)
+
+        def crear_backup():
+            # Diálogo para elegir dónde guardar el backup
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".sql",
+                filetypes=[("SQL files", "*.sql")],
+                title="Guardar backup como..."
+            )
+            if not file_path:
+                return
+            # Obtener datos de conexión
+            db_conf = self.db_manager.config
+            cmd = [
+                "pg_dump",
+                f"-h{db_conf['host']}",
+                f"-p{db_conf['port']}",
+                f"-U{db_conf['user']}",
+                "-F", "c",  # formato personalizado
+                "-b",         # incluir blobs
+                "-v",         # verbose
+                "-f", file_path,
+                db_conf['database']
+            ]
+            env = os.environ.copy()
+            env["PGPASSWORD"] = db_conf["password"]
+            try:
+                subprocess.run(cmd, check=True, env=env)
+                messagebox.showinfo("Backup exitoso", f"Backup guardado en:\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("Error de backup", f"No se pudo crear el backup:\n{e}")
+
+        def restaurar_backup():
+            # Diálogo para elegir el archivo de backup
+            file_path = filedialog.askopenfilename(
+                filetypes=[("SQL files", "*.sql"), ("Todos", "*.*")],
+                title="Seleccionar archivo de backup"
+            )
+            if not file_path:
+                return
+            # Obtener datos de conexión
+            db_conf = self.db_manager.config
+            cmd = [
+                "pg_restore",
+                f"-h{db_conf['host']}",
+                f"-p{db_conf['port']}",
+                f"-U{db_conf['user']}",
+                "-d", db_conf['database'],
+                "-v",
+                file_path
+            ]
+            env = os.environ.copy()
+            env["PGPASSWORD"] = db_conf["password"]
+            try:
+                subprocess.run(cmd, check=True, env=env)
+                messagebox.showinfo("Restauración exitosa", f"Backup restaurado desde:\n{file_path}")
+            except Exception as e:
+                messagebox.showerror("Error de restauración", f"No se pudo restaurar el backup:\n{e}")
+
+        # Botón para crear backup
+        backup_btn = ct.CTkButton(
+            self.panel_contenido,
+            text="Crear Backup",
+            font=("Segoe UI", 14, "bold"),
+            fg_color="#00FFAA",
+            text_color="#000000",
+            command=crear_backup
+        )
+        backup_btn.pack(pady=10)
+
+        # Botón para restaurar backup
+        restore_btn = ct.CTkButton(
+            self.panel_contenido,
+            text="Restaurar Backup",
+            font=("Segoe UI", 14, "bold"),
+            fg_color="#00AAFF",
+            text_color="#FFFFFF",
+            command=restaurar_backup
+        )
+        restore_btn.pack(pady=10)
+
+        # (Opcional) Aquí se puede agregar una tabla de historial de backups en el futuro
 
     def mostrar_configuracion(self):
         self.limpiar_panel_contenido()
@@ -1940,21 +2082,32 @@ class MainWindow:
         # Aquí puedes agregar opciones de configuración para superadmin
     
     def _crear_interfaz_normal(self):
-        """Crea la interfaz normal para otros usuarios"""
+        """Crea la interfaz normal para otros usuarios (tabview robusto)"""
+        # Si ya existe el tabview, lo reutilizamos, si no, lo creamos
+        if not hasattr(self, 'tabview') or not self.tabview.winfo_exists():
+            self.tabview = ct.CTkTabview(self.master, fg_color="#000000")
+            self.tabview.pack(fill="both", expand=True, padx=40, pady=20)
+        else:
+            # Limpiar solo las pestañas, no destruir el tabview
+            for tab in self.tabview.tabs():
+                self.tabview.delete(tab)
         # Pestaña Escáner (todos los usuarios)
         self.tabview.add("Escáner")
         self._configurar_tab_escaner(self.tabview.tab("Escáner"))
-        
         # Pestaña Captura (solo rol captura y admin)
         if self.rol in ["captura", "admin"]:
             self.tabview.add("Captura de Datos")
             self._configurar_tab_captura(self.tabview.tab("Captura de Datos"))
-        
         # Pestaña Configuración (solo admin)
         if self.rol == "admin":
             self.tabview.add("Configuración")
             self._configurar_tab_configuracion(self.tabview.tab("Configuración"))
-        
+        # Aquí puedes agregar más pestañas según el rol
+        # self.tabview.add("Otra sección")
+        # self._configurar_tab_otra(self.tabview.tab("Otra sección"))
+        # Establecer pestaña inicial
+        self.tabview.set("Escáner")
+
     def _configurar_tab_gestion_usuarios(self, parent):
         """Configura la pestaña de gestión de usuarios para superadmin"""
         main_frame = ct.CTkFrame(parent, fg_color="#000000")
@@ -2011,43 +2164,76 @@ class MainWindow:
         from tkinter import ttk
         import pandas as pd
         import datetime
-        # Filtros
+        try:
+            from tkcalendar import DateEntry
+            has_calendar = True
+        except ImportError:
+            has_calendar = False
+        # Filtros avanzados
         filtros_frame = ct.CTkFrame(parent, fg_color="#000000")
         filtros_frame.pack(fill="x", padx=20, pady=(20, 10))
-        # Usuario
+        # Usuario (desplegable)
+        usuarios_aud = self.db_manager.execute_query("SELECT DISTINCT usuario FROM auditoria ORDER BY usuario ASC")
+        usuarios_lista = [u['usuario'] for u in usuarios_aud]
+        usuarios_lista.insert(0, "Todos")
+        self.filtro_usuario_var = ct.StringVar(value="Todos")
         ct.CTkLabel(filtros_frame, text="Usuario:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
-        self.filtro_usuario_var = ct.StringVar()
-        usuario_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_usuario_var, width=120)
-        usuario_entry.pack(side="left", padx=(0, 10))
-        # Acción
+        usuario_menu = ct.CTkOptionMenu(filtros_frame, variable=self.filtro_usuario_var, values=usuarios_lista, width=120, fg_color="#111111", text_color="#00FFAA")
+        usuario_menu.pack(side="left", padx=(0, 10))
+        # Acción (desplegable)
+        acciones_aud = self.db_manager.execute_query("SELECT DISTINCT accion FROM auditoria ORDER BY accion ASC")
+        acciones_lista = [a['accion'] for a in acciones_aud]
+        acciones_lista.insert(0, "Todas")
+        self.filtro_accion_var = ct.StringVar(value="Todas")
         ct.CTkLabel(filtros_frame, text="Acción:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
-        self.filtro_accion_var = ct.StringVar()
-        accion_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_accion_var, width=120)
-        accion_entry.pack(side="left", padx=(0, 10))
+        accion_menu = ct.CTkOptionMenu(filtros_frame, variable=self.filtro_accion_var, values=acciones_lista, width=120, fg_color="#111111", text_color="#00FFAA")
+        accion_menu.pack(side="left", padx=(0, 10))
         # Fecha desde
-        ct.CTkLabel(filtros_frame, text="Desde:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
         self.filtro_fecha_desde_var = ct.StringVar()
-        desde_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_desde_var, width=100, placeholder_text="YYYY-MM-DD")
-        desde_entry.pack(side="left", padx=(0, 10))
+        ct.CTkLabel(filtros_frame, text="Desde:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        if has_calendar:
+            desde_entry = DateEntry(filtros_frame, textvariable=self.filtro_fecha_desde_var, width=12, background='#111111', foreground='#00FFAA', borderwidth=2, date_pattern='yyyy-mm-dd', font=("Segoe UI", 11))
+            desde_entry.pack(side="left", padx=(0, 10))
+        else:
+            desde_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_desde_var, width=100, placeholder_text="YYYY-MM-DD")
+            desde_entry.pack(side="left", padx=(0, 10))
         # Fecha hasta
-        ct.CTkLabel(filtros_frame, text="Hasta:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
         self.filtro_fecha_hasta_var = ct.StringVar()
-        hasta_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_hasta_var, width=100, placeholder_text="YYYY-MM-DD")
-        hasta_entry.pack(side="left", padx=(0, 10))
-        # Botón filtrar
-        filtrar_btn = ct.CTkButton(filtros_frame, text="Filtrar", fg_color="#00FFAA", text_color="#000000", width=80, command=self.cargar_auditoria)
-        filtrar_btn.pack(side="left", padx=(10, 0))
+        ct.CTkLabel(filtros_frame, text="Hasta:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        if has_calendar:
+            hasta_entry = DateEntry(filtros_frame, textvariable=self.filtro_fecha_hasta_var, width=12, background='#111111', foreground='#00FFAA', borderwidth=2, date_pattern='yyyy-mm-dd', font=("Segoe UI", 11))
+            hasta_entry.pack(side="left", padx=(0, 10))
+        else:
+            hasta_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_fecha_hasta_var, width=100, placeholder_text="YYYY-MM-DD")
+            hasta_entry.pack(side="left", padx=(0, 10))
+        # Texto libre en detalles
+        self.filtro_detalles_var = ct.StringVar()
+        ct.CTkLabel(filtros_frame, text="Buscar en detalles:", text_color="#00FFAA").pack(side="left", padx=(0, 5))
+        detalles_entry = ct.CTkEntry(filtros_frame, textvariable=self.filtro_detalles_var, width=160, placeholder_text="Texto libre")
+        detalles_entry.pack(side="left", padx=(0, 10))
+        # Frame para botones a la derecha
+        botones_frame = ct.CTkFrame(filtros_frame, fg_color="#000000")
+        botones_frame.pack(side="right", padx=(10, 0))
+        # Botón limpiar filtros
+        def limpiar_filtros():
+            self.filtro_usuario_var.set("Todos")
+            self.filtro_accion_var.set("Todas")
+            self.filtro_fecha_desde_var.set("")
+            self.filtro_fecha_hasta_var.set("")
+            self.filtro_detalles_var.set("")
+            self.cargar_auditoria()
+        ct.CTkButton(botones_frame, text="Limpiar filtros", command=limpiar_filtros, fg_color="#FF3333", text_color="#FFFFFF", width=120, height=32).pack(side="left", padx=(0, 8))
         # Botón exportar
-        exportar_btn = ct.CTkButton(filtros_frame, text="Exportar a Excel", fg_color="#00AAFF", text_color="#FFFFFF", width=120, command=self.exportar_auditoria_excel)
-        exportar_btn.pack(side="left", padx=(10, 0))
+        exportar_btn = ct.CTkButton(botones_frame, text="Exportar a Excel", fg_color="#00AAFF", text_color="#FFFFFF", width=120, command=self.exportar_auditoria_excel)
+        exportar_btn.pack(side="left", padx=(0, 0))
         # Tabla
         table_frame = ct.CTkFrame(parent, fg_color="#000000")
         table_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
-        columns = ("Usuario", "Acción", "Detalles", "Fecha")
+        columns = ("Usuario", "Acción", "Módulo", "Detalles", "Valor anterior", "Valor nuevo", "Fecha")
         self.auditoria_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=18)
         for col in columns:
             self.auditoria_tree.heading(col, text=col)
-            self.auditoria_tree.column(col, width=180, anchor="center")
+            self.auditoria_tree.column(col, width=160, anchor="center")
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -2063,35 +2249,46 @@ class MainWindow:
         self.auditoria_tree.configure(yscrollcommand=scrollbar.set)
         self.auditoria_tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+        # Actualizar tabla al cambiar cualquier filtro
+        self.filtro_usuario_var.trace_add('write', lambda *args: self.cargar_auditoria())
+        self.filtro_accion_var.trace_add('write', lambda *args: self.cargar_auditoria())
+        self.filtro_fecha_desde_var.trace_add('write', lambda *args: self.cargar_auditoria())
+        self.filtro_fecha_hasta_var.trace_add('write', lambda *args: self.cargar_auditoria())
+        self.filtro_detalles_var.trace_add('write', lambda *args: self.cargar_auditoria())
         self.cargar_auditoria()
 
     def cargar_auditoria(self):
-        # Construir query con filtros
         usuario = self.filtro_usuario_var.get().strip()
         accion = self.filtro_accion_var.get().strip()
         fecha_desde = self.filtro_fecha_desde_var.get().strip()
         fecha_hasta = self.filtro_fecha_hasta_var.get().strip()
-        query = "SELECT usuario, accion, detalles, fecha FROM auditoria WHERE 1=1"
+        detalles = self.filtro_detalles_var.get().strip()
+        query = "SELECT usuario, accion, modulo, detalles, valor_anterior, valor_nuevo, fecha FROM auditoria WHERE 1=1"
         params = []
-        if usuario:
-            query += " AND usuario ILIKE %s"
-            params.append(f"%{usuario}%")
-        if accion:
-            query += " AND accion ILIKE %s"
-            params.append(f"%{accion}%")
+        if usuario and usuario != "Todos":
+            query += " AND usuario = %s"
+            params.append(usuario)
+        if accion and accion != "Todas":
+            query += " AND accion = %s"
+            params.append(accion)
         if fecha_desde:
             query += " AND fecha >= %s"
             params.append(fecha_desde)
         if fecha_hasta:
             query += " AND fecha <= %s"
             params.append(fecha_hasta + " 23:59:59")
+        if detalles:
+            query += " AND detalles ILIKE %s"
+            params.append(f"%{detalles}%")
         query += " ORDER BY fecha DESC LIMIT 500"
         try:
             for item in self.auditoria_tree.get_children():
                 self.auditoria_tree.delete(item)
             resultados = self.db_manager.execute_query(query, tuple(params))
             for r in resultados:
-                self.auditoria_tree.insert("", "end", values=(r['usuario'], r['accion'], r['detalles'], str(r['fecha'])))
+                self.auditoria_tree.insert("", "end", values=(
+                    r['usuario'], r['accion'], r.get('modulo',''), r.get('detalles',''), r.get('valor_anterior',''), r.get('valor_nuevo',''), str(r['fecha'])
+                ))
         except Exception as e:
             print(f"Error cargando auditoría: {e}")
 
@@ -2103,7 +2300,7 @@ class MainWindow:
         if not rows:
             messagebox.showinfo("Sin datos", "No hay datos para exportar.")
             return
-        df = pd.DataFrame(rows, columns=["Usuario", "Acción", "Detalles", "Fecha"])
+        df = pd.DataFrame(rows, columns=["Usuario", "Acción", "Módulo", "Detalles", "Valor anterior", "Valor nuevo", "Fecha"])
         ruta = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
             filetypes=[("Archivos Excel", "*.xlsx")],
@@ -2400,9 +2597,10 @@ class MainWindow:
                 messagebox.showinfo("Éxito", "Usuario creado correctamente")
                 self.limpiar_formulario_usuario()
                 self.cargar_usuarios()
-                # Seleccionar automáticamente el nuevo usuario después de un breve delay
                 self.master.after(200, lambda: self._seleccionar_usuario_en_tabla(usuario))
                 self.logger.log_user_action(self.usuario, f"Usuario creado: {usuario}")
+                if self.auditoria_logger:
+                    self.auditoria_logger.registrar_accion(self.usuario, "Crear usuario", f"Usuario creado: {usuario}, Rol: {rol}, Estado: {activo}")
             else:
                 messagebox.showerror("Error", "No se pudo crear el usuario. Verifica que no sea superadmin o que el usuario ya exista.")
         except Exception as e:
@@ -2455,6 +2653,8 @@ class MainWindow:
                     self.limpiar_formulario_usuario()
                     self.usuarios_tree.selection_remove(self.usuarios_tree.selection())
                     self.logger.log_user_action(self.usuario, f"Usuario eliminado: {usuario}")
+                    if self.auditoria_logger:
+                        self.auditoria_logger.registrar_accion(self.usuario, "Eliminar usuario", f"Usuario eliminado: {usuario}")
                 else:
                     messagebox.showerror("Error", "No se pudo eliminar el usuario")
             except Exception as e:
@@ -2485,6 +2685,15 @@ class MainWindow:
                 self.cargar_usuarios()
                 self.usuarios_tree.selection_remove(self.usuarios_tree.selection())
                 self.logger.log_user_action(self.usuario, f"Estado cambiado para {usuario}: {nuevo_estado}")
+                if self.auditoria_logger:
+                    self.auditoria_logger.registrar_accion(
+                        usuario=self.usuario,
+                        accion="Cambio de estado",
+                        modulo="Usuarios",
+                        detalles=f"Cambio de estado de usuario: {usuario}",
+                        valor_anterior=estado_actual,
+                        valor_nuevo=nuevo_estado
+                    )
             else:
                 messagebox.showerror("Error", "No se pudo cambiar el estado")
         except Exception as e:
@@ -2510,18 +2719,18 @@ class MainWindow:
             try:
                 nueva_contraseña = simpledialog.askstring("Cambiar Contraseña", "Ingrese la nueva contraseña:")
                 if nueva_contraseña:
-                    # Validar formato de contraseña
                     es_valido_pass, mensaje = Validators.validar_contraseña(nueva_contraseña)
                     if not es_valido_pass:
                         messagebox.showwarning("Formato inválido", mensaje)
                         return
-                    
                     resultado = self.usuario_model.cambiar_contraseña(usuario, nueva_contraseña)
                     if resultado:
                         messagebox.showinfo("Éxito", f"Contraseña cambiada correctamente para el usuario '{usuario}'")
                         self.cargar_usuarios()
                         self.usuarios_tree.selection_remove(self.usuarios_tree.selection())
                         self.logger.log_user_action(self.usuario, f"Contraseña cambiada para usuario: {usuario}")
+                        if self.auditoria_logger:
+                            self.auditoria_logger.registrar_accion(self.usuario, "Cambiar contraseña usuario", f"Usuario: {usuario}")
                     else:
                         messagebox.showerror("Error", "No se pudo cambiar la contraseña")
                 else:
@@ -2679,7 +2888,7 @@ class MainWindow:
             wraplength=500
         )
         self.resultado_valor.pack(pady=(0, 0))
-        # NOM oculta por el momento porque me da flojera revisar la logica y no tengo como hacer relacion
+        # Mostar motivo de no cumplimiento en caso de existir
         self.nom_valor = ct.CTkLabel(
             parent, 
             text="",  # texto vacío por defecto
@@ -2759,7 +2968,7 @@ class MainWindow:
             corner_radius=12,
             width=200,
             height=32,
-            command=self.mostrar_historial_cargas_y_consultas
+            command=self._mostrar_historial_cargas_y_consultas
         )
         self.historial_button.pack(pady=(0, 18))
 
@@ -2895,7 +3104,7 @@ class MainWindow:
             cal = None
 
         def exportar():
-            fecha = cal.get_date().strftime('%Y-%m-d') if cal else None
+            fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
             if not fecha:
                 messagebox.showerror("Error", "Selecciona una fecha válida.")
                 return
@@ -2936,7 +3145,6 @@ class MainWindow:
     def cerrar_sesion(self):
         """Cierra la sesión y regresa a la pantalla de login"""
         try:
-            self.logger.log_user_action(self.usuario, "Cerrar sesión")
             self.master.destroy()
             app = EscanerApp()
             app.ejecutar()
@@ -3472,12 +3680,12 @@ class MainWindow:
             height=36
         ).pack(pady=5, padx=20, anchor="w")
 
-    def mostrar_historial_cargas_y_consultas(self):
+    def _mostrar_historial_cargas_y_consultas(self):
         import tkinter as tk
         from tkinter import ttk, filedialog
         import customtkinter as ct
         import pandas as pd
-        # Crear ventana toplevel
+        # Crear ventana toplevel :)
         top = ct.CTkToplevel(self.master)
         top.title("Historial del día")
         top.geometry("700x700")
@@ -3496,11 +3704,9 @@ class MainWindow:
             filtro = filtro_var.get().strip().lower()
             try:
                 if filtro:
-                    # Buscar en todo el historial por coincidencia de nombre de archivo
                     query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE LOWER(archivo) LIKE %s ORDER BY fecha_carga DESC"
                     cargas = self.db_manager.execute_query(query_cargas, (f"%{filtro}%",))
                 else:
-                    # Solo mostrar las cargas del día actual
                     query_cargas = "SELECT archivo, usuario, fecha_carga, codigos_agregados FROM clp_cargas WHERE fecha_carga::date = CURRENT_DATE ORDER BY fecha_carga DESC"
                     cargas = self.db_manager.execute_query(query_cargas)
             except Exception as e:
@@ -3539,14 +3745,12 @@ class MainWindow:
             consultas = self.db_manager.execute_query(query_consultas)
         except Exception as e:
             consultas = []
-        # Tabla de consultas
         table_frame = ct.CTkFrame(main_frame, fg_color="#111111")
         table_frame.pack(fill="both", expand=True, pady=(0, 10))
         columns = ("Fecha/Hora", "Usuario", "Código de Barras", "Resultado")
         tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
         for col in columns:
             tree.heading(col, text=col)
-        # Estilo ttk para fondo oscuro y tipo Excel
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -3566,19 +3770,16 @@ class MainWindow:
         style.layout("Treeview", [
             ('Treeview.treearea', {'sticky': 'nswe'})
         ])
-        # Ajustar ancho de columnas
         tree.column("Fecha/Hora", width=160, anchor="center")
         tree.column("Usuario", width=100, anchor="center")
         tree.column("Código de Barras", width=220, anchor="center")
         tree.column("Resultado", width=120, anchor="center")
-        # Insertar datos con rayado
         for i, c in enumerate(consultas):
             values = (c['fecha_hora'], c['usuario'], c['codigo_barras'], c['resultado'] or "Sin resultado")
             tag = 'evenrow' if i % 2 == 0 else 'oddrow'
             tree.insert("", "end", values=values, tags=(tag,))
         tree.tag_configure('evenrow', background='#181818')
         tree.tag_configure('oddrow', background='#222222')
-        # Scrollbar
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
         tree.pack(side="left", fill="both", expand=True)
@@ -3588,14 +3789,12 @@ class MainWindow:
         ct.CTkLabel(
             main_frame, text="Capturas del día:", font=("Segoe UI", 16, "bold"), text_color="#00FFAA", fg_color="#000000"
         ).pack(anchor="w", pady=(10, 5))
-        # Tabla de capturas
         capturas_frame = ct.CTkFrame(main_frame, fg_color="#111111")
         capturas_frame.pack(fill="both", expand=True, pady=(0, 10))
         columns = ("Fecha/Hora", "Usuario", "Código", "Item", "Resultado", "Motivo")
         capturas_tree = ttk.Treeview(capturas_frame, columns=columns, show="headings", height=8)
         for col in columns:
             capturas_tree.heading(col, text=col)
-        # Estilo ttk para fondo oscuro
         style = ttk.Style()
         style.theme_use('default')
         style.configure("Treeview",
@@ -3615,14 +3814,12 @@ class MainWindow:
         style.layout("Treeview", [
             ('Treeview.treearea', {'sticky': 'nswe'})
         ])
-        # Ajustar ancho de columnas
         capturas_tree.column("Fecha/Hora", width=140, anchor="center")
         capturas_tree.column("Usuario", width=80, anchor="center")
         capturas_tree.column("Código", width=160, anchor="center")
         capturas_tree.column("Item", width=80, anchor="center")
         capturas_tree.column("Resultado", width=100, anchor="center")
         capturas_tree.column("Motivo", width=160, anchor="center")
-        # Consultar capturas del día
         try:
             query_capturas = "SELECT fecha, usuario, codigo, item, cumple, motivo FROM capturas WHERE fecha::date = CURRENT_DATE ORDER BY fecha DESC"
             capturas = self.db_manager.execute_query(query_capturas)
@@ -3636,7 +3833,6 @@ class MainWindow:
             capturas_tree.insert("", "end", values=values, tags=(tag,))
         capturas_tree.tag_configure('evenrow', background='#181818')
         capturas_tree.tag_configure('oddrow', background='#222222')
-        # Scrollbar
         scrollbar = ttk.Scrollbar(capturas_frame, orient="vertical", command=capturas_tree.yview)
         capturas_tree.configure(yscrollcommand=scrollbar.set)
         capturas_tree.pack(side="left", fill="both", expand=True)
@@ -3655,15 +3851,15 @@ class MainWindow:
             main_frame,
             text="Ver Historial del Día",
             font=("Segoe UI", 12, "bold"),
-            fg_color="#000000",
+            fg_color="#111111",
+            hover_color="#55DDFF",
             border_width=2,
-            border_color="#00FFAA",
-            text_color="#00FFAA",
-            hover_color="#111111",
+            border_color="#55DDFF",
+            text_color="#55DDFF",
             corner_radius=12,
             width=200,
             height=32,
-            command=self.mostrar_historial_cargas_y_consultas
+            command=self._mostrar_historial_cargas_y_consultas
         )
         self.historial_button.pack(pady=(0, 18))
 
@@ -3673,11 +3869,11 @@ class MainWindow:
                 main_frame,
                 text="Exportar Reporte del Día",
                 font=("Segoe UI", 12, "bold"),
-                fg_color="#000000",
+                fg_color="#111111",
+                hover_color="#55DDFF",
                 border_width=2,
-                border_color="#00FFAA",
-                text_color="#00FFAA",
-                hover_color="#111111",
+                border_color="#55DDFF",
+                text_color="#55DDFF",
                 corner_radius=12,
                 width=200,
                 height=32,
@@ -3757,14 +3953,11 @@ class MainWindow:
             main_frame,
             text="Exportar Capturas del Día",
             font=("Segoe UI", 14, "bold"),
-            fg_color="#000000",
-            border_width=2,
-            border_color="#00FFAA",
-            text_color="#00FFAA",
-            hover_color="#111111",
-            corner_radius=12,
+            fg_color="#00FFAA",
+            text_color="#000000",
             width=200,
             height=40,
+            corner_radius=12,
             command=exportar_capturas
         )
         self.exportar_capturas_button.pack(pady=(0, 10))
@@ -3799,7 +3992,7 @@ class MainWindow:
             cal = None
 
         def exportar():
-            fecha = cal.get_date().strftime('%Y-%m-d') if cal else None
+            fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
             if not fecha:
                 messagebox.showerror("Error", "Selecciona una fecha válida.")
                 return
@@ -3840,7 +4033,6 @@ class MainWindow:
     def cerrar_sesion(self):
         """Cierra la sesión y regresa a la pantalla de login"""
         try:
-            self.logger.log_user_action(self.usuario, "Cerrar sesión")
             self.master.destroy()
             app = EscanerApp()
             app.ejecutar()

@@ -281,27 +281,38 @@ class CodigoItem:
         
         return item_limpio if item_limpio else "0"
     
-    def actualizar_resultado(self, codigo_barras: str, resultado: str) -> bool:
+    def actualizar_resultado(self, codigo_barras: str, resultado: str, usuario: str = None, auditoria_logger=None) -> bool:
         """
-        Actualiza el resultado de un código
-        
+        Actualiza el resultado de un código y registra la auditoría avanzada si se provee el logger
         Args:
             codigo_barras: Código de barras
             resultado: Nuevo resultado
-            
+            usuario: Usuario que realiza el cambio (opcional)
+            auditoria_logger: Logger de auditoría (opcional)
         Returns:
             bool: True si se actualizó exitosamente
         """
         try:
+            # Obtener el resultado anterior
+            res = self.db.execute_query("SELECT resultado FROM codigos_items WHERE codigo_barras = %s", (codigo_barras,))
+            valor_anterior = res[0]['resultado'] if res else None
             data = {
                 "resultado": resultado,
                 "fecha_actualizacion": pd.Timestamp.now()
             }
             condition = {"codigo_barras": codigo_barras}
-            
             self.db.update_one("codigos_items", data, condition)
+            # Registrar en auditoría si corresponde
+            if usuario and auditoria_logger:
+                auditoria_logger.registrar_accion(
+                    usuario=usuario,
+                    accion="Cambio de estado",
+                    modulo="Artículos",
+                    detalles=f"Cambio de resultado de artículo: {codigo_barras}",
+                    valor_anterior=valor_anterior,
+                    valor_nuevo=resultado
+                )
             return True
-            
         except Exception as e:
             print(f"Error actualizando resultado: {str(e)}")
             return False

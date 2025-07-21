@@ -4,14 +4,14 @@ class AuditoriaLogger:
     def __init__(self, db_manager):
         self.db_manager = db_manager
 
-    def registrar_accion(self, usuario, accion, detalles=None):
+    def registrar_accion(self, usuario, accion, modulo, detalles=None, valor_anterior=None, valor_nuevo=None):
         try:
             query = """
-                INSERT INTO auditoria (usuario, accion, detalles, fecha)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO auditoria (usuario, accion, modulo, detalles, valor_anterior, valor_nuevo, fecha)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
             fecha = datetime.now()
-            self.db_manager.execute_query(query, (usuario, accion, detalles, fecha), fetch=False)
+            self.db_manager.execute_query(query, (usuario, accion, modulo, detalles, valor_anterior, valor_nuevo, fecha), fetch=False)
         except Exception as e:
             # Aquí podrías loguear a un archivo si falla la auditoría
             print(f"Error registrando auditoría: {e}") 
