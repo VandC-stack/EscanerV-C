@@ -193,7 +193,10 @@ class Validators:
             "Pais de origen",
             "Talla",
             "Importador",
-            "Marca"
+            "Marca",
+            "Caracteristícas Electricas",
+            "Edad Recomendada",
+            "Unidades de Medida"
         ]
         
         if not motivo or not motivo.strip():

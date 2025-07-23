@@ -835,36 +835,75 @@ class EscanerApp:
             "Pais de origen",
             "Talla",
             "Importador",
-            "Marca"
+            "Marca",
+            "Caracteristícas Electricas",
+            "Edad Recomendada",
+            "Unidades de Medida"
         ]
-        self.motivo_label = ct.CTkLabel(
-            motivo_guardar_frame, 
-            text="Motivo:", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 13, "bold")
-        )
-        self.motivo_label.pack(anchor="w", padx=10, pady=(10, 0))
-        self.motivo_captura_var = StringVar(value=motivo_options[0])
-        self.motivo_captura_menu = ct.CTkOptionMenu(
+        self.motivo_seleccionados = []
+
+        self.motivo_btn = ct.CTkButton(
             motivo_guardar_frame,
-            variable=self.motivo_captura_var,
-            values=motivo_options,
+            text="Seleccionar motivo(s) de no cumplimiento",
+            command=lambda: self.abrir_popup_motivos(motivo_options),
+            font=("Segoe UI", 13, "bold"),
             fg_color="#000000",
             text_color="#00FFAA",
-            font=("Segoe UI", 13),
+            border_width=2,
+            border_color="#00FFAA",
+            hover_color="#111111",
+            corner_radius=10,
             width=400,
-            height=36
+            height=36,
+            state="disabled"
         )
-        self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
+        self.motivo_btn.pack(fill="x", padx=10, pady=(0, 8))
+
         def on_cumple_change(*args):
             if self.cumple_captura_var.get() == "NO CUMPLE":
-                self.motivo_captura_menu.configure(state="normal", text_color="#00FFAA")
-                self.motivo_label.configure(text_color="#00FFAA")
+                self.motivo_btn.configure(state="normal", fg_color="#000000", text_color="#00FFAA", border_color="#00FFAA")
             else:
-                self.motivo_captura_menu.configure(state="disabled", text_color="#888888")
-                self.motivo_label.configure(text_color="#888888")
+                self.motivo_btn.configure(state="disabled", fg_color="#222222", text_color="#888888", border_color="#222222")
+                self.motivo_seleccionados = []
+                self.motivo_btn.configure(text="Seleccionar motivo(s) de no cumplimiento")
         self.cumple_captura_var.trace_add('write', on_cumple_change)
         on_cumple_change()
+
+        def abrir_popup_motivos(self, opciones):
+            popup = ct.CTkToplevel(self.master)
+            popup.title("Seleccionar motivos")
+            popup.geometry("400x400")
+            popup.grab_set()
+            seleccionados = {motivo: (motivo in self.motivo_seleccionados) for motivo in opciones}
+            checks = {}
+            def actualizar_btn():
+                seleccion = [m for m, v in seleccionados.items() if v]
+                if seleccion:
+                    self.motivo_btn.configure(text=", ".join(seleccion))
+                else:
+                    self.motivo_btn.configure(text="Seleccionar motivo(s) de no cumplimiento")
+            def on_check(motivo):
+                def inner():
+                    seleccionados[motivo] = not seleccionados[motivo]
+                    seleccion = [m for m, v in seleccionados.items() if v]
+                    if len(seleccion) > 3:
+                        seleccionados[motivo] = False
+                        checks[motivo].deselect()
+                        ct.CTkMessagebox(title="Error", message="Máximo 3 motivos.")
+                    actualizar_btn()
+                return inner
+            for i, motivo in enumerate(opciones):
+                var = ct.BooleanVar(value=seleccionados[motivo])
+                chk = ct.CTkCheckBox(popup, text=motivo, variable=var, command=on_check(motivo))
+                chk.pack(anchor="w", padx=20, pady=5)
+                checks[motivo] = chk
+            def aceptar():
+                self.motivo_seleccionados = [m for m, v in seleccionados.items() if v]
+                actualizar_btn()
+                popup.destroy()
+            aceptar_btn = ct.CTkButton(popup, text="Aceptar", command=aceptar)
+            aceptar_btn.pack(pady=20)
+        self.abrir_popup_motivos = abrir_popup_motivos.__get__(self)
 
         # Botón guardar al final del frame
         self.guardar_btn = ct.CTkButton(
@@ -904,6 +943,11 @@ class EscanerApp:
             (cumple, item_id), fetch=False)
         # Manejo de motivo
         if cumple == "NO CUMPLE":
+            motivos = self.motivo_seleccionados
+            if not motivos or len(motivos) > 3:
+                messagebox.showerror("Error", "Debes seleccionar entre 1 y 3 motivos de no cumplimiento.")
+                return
+            motivo = ", ".join(motivos)
             self.codigo_model.db.execute_query(
                 "INSERT INTO motivos_no_cumplimiento (item_id, motivo) VALUES (%s, %s) ON CONFLICT (item_id) DO UPDATE SET motivo = EXCLUDED.motivo",
                 (item_id, motivo), fetch=False)
@@ -3415,36 +3459,75 @@ class MainWindow:
             "Pais de origen",
             "Talla",
             "Importador",
-            "Marca"
+            "Marca",
+            "Caracteristícas Electricas",
+            "Edad Recomendada",
+            "Unidades de Medida"
         ]
-        self.motivo_label = ct.CTkLabel(
-            motivo_guardar_frame, 
-            text="Motivo:", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 13, "bold")
-        )
-        self.motivo_label.pack(anchor="w", padx=10, pady=(10, 0))
-        self.motivo_captura_var = StringVar(value=motivo_options[0])
-        self.motivo_captura_menu = ct.CTkOptionMenu(
+        self.motivo_seleccionados = []
+
+        self.motivo_btn = ct.CTkButton(
             motivo_guardar_frame,
-            variable=self.motivo_captura_var,
-            values=motivo_options,
+            text="Seleccionar motivo(s) de no cumplimiento",
+            command=lambda: self.abrir_popup_motivos(motivo_options),
+            font=("Segoe UI", 13, "bold"),
             fg_color="#000000",
             text_color="#00FFAA",
-            font=("Segoe UI", 13),
+            border_width=2,
+            border_color="#00FFAA",
+            hover_color="#111111",
+            corner_radius=10,
             width=400,
-            height=36
+            height=36,
+            state="disabled"
         )
-        self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
+        self.motivo_btn.pack(fill="x", padx=10, pady=(0, 8))
+
         def on_cumple_change(*args):
             if self.cumple_captura_var.get() == "NO CUMPLE":
-                self.motivo_captura_menu.configure(state="normal", text_color="#00FFAA")
-                self.motivo_label.configure(text_color="#00FFAA")
+                self.motivo_btn.configure(state="normal", fg_color="#000000", text_color="#00FFAA", border_color="#00FFAA")
             else:
-                self.motivo_captura_menu.configure(state="disabled", text_color="#888888")
-                self.motivo_label.configure(text_color="#888888")
+                self.motivo_btn.configure(state="disabled", fg_color="#222222", text_color="#888888", border_color="#222222")
+                self.motivo_seleccionados = []
+                self.motivo_btn.configure(text="Seleccionar motivo(s) de no cumplimiento")
         self.cumple_captura_var.trace_add('write', on_cumple_change)
         on_cumple_change()
+
+        def abrir_popup_motivos(self, opciones):
+            popup = ct.CTkToplevel(self.master)
+            popup.title("Seleccionar motivos")
+            popup.geometry("400x400")
+            popup.grab_set()
+            seleccionados = {motivo: (motivo in self.motivo_seleccionados) for motivo in opciones}
+            checks = {}
+            def actualizar_btn():
+                seleccion = [m for m, v in seleccionados.items() if v]
+                if seleccion:
+                    self.motivo_btn.configure(text=", ".join(seleccion))
+                else:
+                    self.motivo_btn.configure(text="Seleccionar motivo(s) de no cumplimiento")
+            def on_check(motivo):
+                def inner():
+                    seleccionados[motivo] = not seleccionados[motivo]
+                    seleccion = [m for m, v in seleccionados.items() if v]
+                    if len(seleccion) > 3:
+                        seleccionados[motivo] = False
+                        checks[motivo].deselect()
+                        ct.CTkMessagebox(title="Error", message="Máximo 3 motivos.")
+                    actualizar_btn()
+                return inner
+            for i, motivo in enumerate(opciones):
+                var = ct.BooleanVar(value=seleccionados[motivo])
+                chk = ct.CTkCheckBox(popup, text=motivo, variable=var, command=on_check(motivo))
+                chk.pack(anchor="w", padx=20, pady=5)
+                checks[motivo] = chk
+            def aceptar():
+                self.motivo_seleccionados = [m for m, v in seleccionados.items() if v]
+                actualizar_btn()
+                popup.destroy()
+            aceptar_btn = ct.CTkButton(popup, text="Aceptar", command=aceptar)
+            aceptar_btn.pack(pady=20)
+        self.abrir_popup_motivos = abrir_popup_motivos.__get__(self)
 
         # Botón guardar SIEMPRE al final del frame
         self.guardar_btn = ct.CTkButton(
@@ -3484,6 +3567,11 @@ class MainWindow:
             (cumple, item_id), fetch=False)
         # Manejo de motivo
         if cumple == "NO CUMPLE":
+            motivos = self.motivo_seleccionados
+            if not motivos or len(motivos) > 3:
+                messagebox.showerror("Error", "Debes seleccionar entre 1 y 3 motivos de no cumplimiento.")
+                return
+            motivo = ", ".join(motivos)
             self.codigo_model.db.execute_query(
                 "INSERT INTO motivos_no_cumplimiento (item_id, motivo) VALUES (%s, %s) ON CONFLICT (item_id) DO UPDATE SET motivo = EXCLUDED.motivo",
                 (item_id, motivo), fetch=False)
@@ -4303,36 +4391,75 @@ class MainWindow:
             "Pais de origen",
             "Talla",
             "Importador",
-            "Marca"
+            "Marca",
+            "Caracteristícas Electricas",
+            "Edad Recomendada",
+            "Unidades de Medida"
         ]
-        self.motivo_label = ct.CTkLabel(
-            motivo_guardar_frame, 
-            text="Motivo:", 
-            text_color="#00FFAA", 
-            font=("Segoe UI", 13, "bold")
-        )
-        self.motivo_label.pack(anchor="w", padx=10, pady=(10, 0))
-        self.motivo_captura_var = StringVar(value=motivo_options[0])
-        self.motivo_captura_menu = ct.CTkOptionMenu(
+        self.motivo_seleccionados = []
+
+        self.motivo_btn = ct.CTkButton(
             motivo_guardar_frame,
-            variable=self.motivo_captura_var,
-            values=motivo_options,
+            text="Seleccionar motivo(s) de no cumplimiento",
+            command=lambda: self.abrir_popup_motivos(motivo_options),
+            font=("Segoe UI", 13, "bold"),
             fg_color="#000000",
             text_color="#00FFAA",
-            font=("Segoe UI", 13),
+            border_width=2,
+            border_color="#00FFAA",
+            hover_color="#111111",
+            corner_radius=10,
             width=400,
-            height=36
+            height=36,
+            state="disabled"
         )
-        self.motivo_captura_menu.pack(fill="x", padx=10, pady=(0, 8))
+        self.motivo_btn.pack(fill="x", padx=10, pady=(0, 8))
+
         def on_cumple_change(*args):
             if self.cumple_captura_var.get() == "NO CUMPLE":
-                self.motivo_captura_menu.configure(state="normal", text_color="#00FFAA")
-                self.motivo_label.configure(text_color="#00FFAA")
+                self.motivo_btn.configure(state="normal", fg_color="#000000", text_color="#00FFAA", border_color="#00FFAA")
             else:
-                self.motivo_captura_menu.configure(state="disabled", text_color="#888888")
-                self.motivo_label.configure(text_color="#888888")
+                self.motivo_btn.configure(state="disabled", fg_color="#222222", text_color="#888888", border_color="#222222")
+                self.motivo_seleccionados = []
+                self.motivo_btn.configure(text="Seleccionar motivo(s) de no cumplimiento")
         self.cumple_captura_var.trace_add('write', on_cumple_change)
         on_cumple_change()
+
+        def abrir_popup_motivos(self, opciones):
+            popup = ct.CTkToplevel(self.master)
+            popup.title("Seleccionar motivos")
+            popup.geometry("400x400")
+            popup.grab_set()
+            seleccionados = {motivo: (motivo in self.motivo_seleccionados) for motivo in opciones}
+            checks = {}
+            def actualizar_btn():
+                seleccion = [m for m, v in seleccionados.items() if v]
+                if seleccion:
+                    self.motivo_btn.configure(text=", ".join(seleccion))
+                else:
+                    self.motivo_btn.configure(text="Seleccionar motivo(s) de no cumplimiento")
+            def on_check(motivo):
+                def inner():
+                    seleccionados[motivo] = not seleccionados[motivo]
+                    seleccion = [m for m, v in seleccionados.items() if v]
+                    if len(seleccion) > 3:
+                        seleccionados[motivo] = False
+                        checks[motivo].deselect()
+                        ct.CTkMessagebox(title="Error", message="Máximo 3 motivos.")
+                    actualizar_btn()
+                return inner
+            for i, motivo in enumerate(opciones):
+                var = ct.BooleanVar(value=seleccionados[motivo])
+                chk = ct.CTkCheckBox(popup, text=motivo, variable=var, command=on_check(motivo))
+                chk.pack(anchor="w", padx=20, pady=5)
+                checks[motivo] = chk
+            def aceptar():
+                self.motivo_seleccionados = [m for m, v in seleccionados.items() if v]
+                actualizar_btn()
+                popup.destroy()
+            aceptar_btn = ct.CTkButton(popup, text="Aceptar", command=aceptar)
+            aceptar_btn.pack(pady=20)
+        self.abrir_popup_motivos = abrir_popup_motivos.__get__(self)
 
         # Botón guardar SIEMPRE al final del frame
         self.guardar_btn = ct.CTkButton(
@@ -4372,6 +4499,11 @@ class MainWindow:
             (cumple, item_id), fetch=False)
         # Manejo de motivo
         if cumple == "NO CUMPLE":
+            motivos = self.motivo_seleccionados
+            if not motivos or len(motivos) > 3:
+                messagebox.showerror("Error", "Debes seleccionar entre 1 y 3 motivos de no cumplimiento.")
+                return
+            motivo = ", ".join(motivos)
             self.codigo_model.db.execute_query(
                 "INSERT INTO motivos_no_cumplimiento (item_id, motivo) VALUES (%s, %s) ON CONFLICT (item_id) DO UPDATE SET motivo = EXCLUDED.motivo",
                 (item_id, motivo), fetch=False)
