@@ -524,7 +524,7 @@ class EscanerApp:
             cal = None
 
         def exportar():
-            fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
+            fecha = cal.get_date().strftime('%Y-%m-d') if cal else None
             if not fecha:
                 messagebox.showerror("Error", "Selecciona una fecha válida.")
                 return
@@ -622,17 +622,42 @@ class EscanerApp:
         self.clave_valor.configure(text=f"ITEM: {resultado.get('item', '')}")
         res = resultado.get('resultado', 'Sin resultado') or 'Sin resultado'
         self.resultado_valor.configure(text=f"RESULTADO: {res}")
-        # Mostrar motivo solo si es NO CUMPLE
+        # Motivo de no cumplimiento (debajo del resultado)
+        mostrar_motivo = False
         if res == 'NO CUMPLE':
-            item = resultado.get('item', '')
+            item = str(resultado.get('item', '')).strip()
             item_id_res = self.db_manager.execute_query("SELECT id FROM items WHERE item = %s", (item,))
             if item_id_res:
                 item_id = item_id_res[0]['id']
-                motivo = self.db_manager.execute_query("SELECT motivo FROM motivos_no_cumplimiento WHERE item_id = %s", (item_id,))
+                motivo = self.db_manager.execute_query(
+                    "SELECT motivo FROM motivos_no_cumplimiento WHERE item_id = %s",
+                    (item_id,)
+                )
                 if motivo and motivo[0].get('motivo'):
-                    self.nom_valor.configure(text=motivo[0]['motivo'])
-                    return
-        self.nom_valor.configure(text="")
+                    self.motivo_valor.configure(text=motivo[0]['motivo'], text_color="#FF3333")
+                    mostrar_motivo = True
+        if not mostrar_motivo:
+            self.motivo_valor.configure(text="")
+        # Mostrar NOMs solo si el campo de embarque tiene valor y no es el placeholder
+        embarque = self.embarque_var.get().strip()
+        if hasattr(self, '_placeholder_embarque') and embarque == self._placeholder_embarque:
+            embarque = ''
+        mostrar_nom = False
+        if embarque:
+            item = str(resultado.get('item', '')).strip()
+            embarque = str(embarque).strip()
+            noms = self.db_manager.execute_query(
+                "SELECT nom FROM item_nom_embarque WHERE item_id = %s AND embarque = %s",
+                (item, embarque)
+            )
+            if noms:
+                noms_validas = [n['nom'] for n in noms if n.get('nom') and n['nom'].strip().upper() != "SIN NORMA"]
+                if noms_validas:
+                    noms_text = '\n'.join(noms_validas)
+                    self.nom_valor.configure(text=noms_text, text_color="#55DDFF")
+                    mostrar_nom = True
+        if not mostrar_nom:
+            self.nom_valor.configure(text="")
     
     def _mostrar_no_encontrado(self):
         """Muestra mensaje de no encontrado"""
@@ -1145,6 +1170,28 @@ class EscanerApp:
             width=260,
             height=36
         ).pack(pady=5, padx=20, anchor="w")
+
+        # Botón para cargar NOMs de embarque (solo admin o superadmin)
+        if self.rol in ("admin", "superadmin"):
+            from utils.carga_noms import cargar_noms_embarque
+            def cargar_noms():
+                try:
+                    cargar_noms_embarque(self.db_manager)
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error al cargar NOMs: {e}")
+            ct.CTkButton(
+                archivos_frame,
+                text="Cargar NOMs de Embarque",
+                command=cargar_noms,
+                font=("Segoe UI", 13, "bold"),
+                fg_color="#00FFAA",
+                text_color="#000000",
+                border_width=2,
+                border_color="#00FFAA",
+                corner_radius=12,
+                width=260,
+                height=36
+            ).pack(pady=5, padx=20, anchor="w")
 
     def _configurar_tab_base_datos(self, parent):
         """Configura la pestaña de base de datos para superadmin"""
@@ -2894,6 +2941,39 @@ class MainWindow:
         """Crea los botones del escáner"""
         botones_frame = ct.CTkFrame(parent, fg_color="#000000")
         botones_frame.pack(pady=(0, 10))
+
+        # Campo de embarque (Entry con placeholder)
+        import tkinter as tk
+        self.embarque_var = tk.StringVar()
+        self.embarque_entry = tk.Entry(
+            botones_frame,
+            textvariable=self.embarque_var,
+            width=22,  # tamaño medio/pequeño
+            font=("Segoe UI", 13),
+            fg="#00FFAA",
+            bg="#000000",
+            insertbackground="#00FFAA",
+            relief="solid",
+            highlightthickness=1,
+            highlightbackground="#00FFAA",
+            borderwidth=1
+        )
+        self.embarque_entry.pack(side="left", padx=(0, 8))
+
+        # Placeholder personalizado
+        self._placeholder_embarque = "Nombre del embarque"
+        def set_placeholder(event=None):
+            if not self.embarque_var.get():
+                self.embarque_entry.insert(0, self._placeholder_embarque)
+                self.embarque_entry.config(fg="#009060")
+        def clear_placeholder(event=None):
+            if self.embarque_entry.get() == self._placeholder_embarque:
+                self.embarque_entry.delete(0, tk.END)
+                self.embarque_entry.config(fg="#00FFAA")
+        self.embarque_entry.bind("<FocusIn>", clear_placeholder)
+        self.embarque_entry.bind("<FocusOut>", set_placeholder)
+        set_placeholder()
+
         # Botón buscar
         self.search_button = ct.CTkButton(
             botones_frame,
@@ -2910,38 +2990,48 @@ class MainWindow:
             command=self.buscar_codigo
         )
         self.search_button.pack(side="left", padx=(0, 8))
-        # Eliminar el botón limpiar BD para todos los usuarios
     
     def _crear_resultados_escaner(self, parent):
         """Crea los labels de resultados"""
+        # NOMs (arriba de ITEM)
+        self.nom_valor = ct.CTkLabel(
+            parent,
+            text="",  # texto vacío por defecto
+            font=("Segoe UI", 12, "italic"),
+            text_color="#55DDFF",
+            fg_color="transparent",
+            wraplength=500
+        )
+        self.nom_valor.pack(pady=(10, 0))
+        # ITEM
         self.clave_valor = ct.CTkLabel(
-            parent, 
-            text="ITEM: ", 
-            font=("Segoe UI", 13, "bold"), 
-            text_color="#00FFAA", 
+            parent,
+            text="ITEM: ",
+            font=("Segoe UI", 13, "bold"),
+            text_color="#00FFAA",
             fg_color="#000000"
         )
         self.clave_valor.pack(pady=(10, 0))
-        
+        # RESULTADO
         self.resultado_valor = ct.CTkLabel(
-            parent, 
-            text="RESULTADO: ", 
-            font=("Segoe UI", 12), 
-            text_color="#00FFAA", 
-            fg_color="#000000", 
+            parent,
+            text="RESULTADO: ",
+            font=("Segoe UI", 12),
+            text_color="#00FFAA",
+            fg_color="#000000",
             wraplength=500
         )
         self.resultado_valor.pack(pady=(0, 0))
-        # Mostar motivo de no cumplimiento en caso de existir
-        self.nom_valor = ct.CTkLabel(
-            parent, 
-            text="",  # texto vacío por defecto
-            font=("Segoe UI", 12, "italic"), 
-            text_color="#00FFAA", 
-            fg_color="transparent", 
+        # MOTIVO (debajo del resultado)
+        self.motivo_valor = ct.CTkLabel(
+            parent,
+            text="",
+            font=("Segoe UI", 12, "italic"),
+            text_color="#FF3333",
+            fg_color="transparent",
             wraplength=500
         )
-        self.nom_valor.pack(pady=(0, 10))
+        self.motivo_valor.pack(pady=(0, 10))
     
     def _crear_estadisticas_escaner(self, parent):
         """Crea las estadísticas del escáner"""
@@ -3148,7 +3238,7 @@ class MainWindow:
             cal = None
 
         def exportar():
-            fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
+            fecha = cal.get_date().strftime('%Y-%m-d') if cal else None
             if not fecha:
                 messagebox.showerror("Error", "Selecciona una fecha válida.")
                 return
@@ -3246,17 +3336,42 @@ class MainWindow:
         self.clave_valor.configure(text=f"ITEM: {resultado.get('item', '')}")
         res = resultado.get('resultado', 'Sin resultado') or 'Sin resultado'
         self.resultado_valor.configure(text=f"RESULTADO: {res}")
-        # Mostrar motivo solo si es NO CUMPLE
+        # Motivo de no cumplimiento (debajo del resultado)
+        mostrar_motivo = False
         if res == 'NO CUMPLE':
-            item = resultado.get('item', '')
+            item = str(resultado.get('item', '')).strip()
             item_id_res = self.db_manager.execute_query("SELECT id FROM items WHERE item = %s", (item,))
             if item_id_res:
                 item_id = item_id_res[0]['id']
-                motivo = self.db_manager.execute_query("SELECT motivo FROM motivos_no_cumplimiento WHERE item_id = %s", (item_id,))
+                motivo = self.db_manager.execute_query(
+                    "SELECT motivo FROM motivos_no_cumplimiento WHERE item_id = %s",
+                    (item_id,)
+                )
                 if motivo and motivo[0].get('motivo'):
-                    self.nom_valor.configure(text=motivo[0]['motivo'])
-                    return
-        self.nom_valor.configure(text="")
+                    self.motivo_valor.configure(text=motivo[0]['motivo'], text_color="#FF3333")
+                    mostrar_motivo = True
+        if not mostrar_motivo:
+            self.motivo_valor.configure(text="")
+        # Mostrar NOMs solo si el campo de embarque tiene valor y no es el placeholder
+        embarque = self.embarque_var.get().strip()
+        if hasattr(self, '_placeholder_embarque') and embarque == self._placeholder_embarque:
+            embarque = ''
+        mostrar_nom = False
+        if embarque:
+            item = str(resultado.get('item', '')).strip()
+            embarque = str(embarque).strip()
+            noms = self.db_manager.execute_query(
+                "SELECT nom FROM item_nom_embarque WHERE item_id = %s AND embarque = %s",
+                (item, embarque)
+            )
+            if noms:
+                noms_validas = [n['nom'] for n in noms if n.get('nom') and n['nom'].strip().upper() != "SIN NORMA"]
+                if noms_validas:
+                    noms_text = '\n'.join(noms_validas)
+                    self.nom_valor.configure(text=noms_text, text_color="#55DDFF")
+                    mostrar_nom = True
+        if not mostrar_nom:
+            self.nom_valor.configure(text="")
     
     def _mostrar_no_encontrado(self):
         """Muestra mensaje de no encontrado"""
@@ -3356,7 +3471,7 @@ class MainWindow:
             text_color="#00FFAA"
         ).pack(pady=(0, 20))
         
-        # Botón para subir capturas pendientes (solo admin y captura) ANTES de los campos
+        # Botón para subir capturas pendientes 
         if self.rol in ["admin", "captura"]:
             self.subir_pendientes_btn = ct.CTkButton(
                 main_frame,
@@ -3767,6 +3882,28 @@ class MainWindow:
             width=260,
             height=36
         ).pack(pady=5, padx=20, anchor="w")
+
+        # Botón para cargar NOMs de embarque (solo admin o superadmin)
+        if self.rol in ("admin", "superadmin"):
+            from utils.carga_noms import cargar_noms_embarque
+            def cargar_noms():
+                try:
+                    cargar_noms_embarque(self.db_manager)
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error al cargar NOMs: {e}")
+            ct.CTkButton(
+                archivos_frame,
+                text="Cargar NOMs de Embarque",
+                command=cargar_noms,
+                font=("Segoe UI", 13, "bold"),
+                fg_color="#00FFAA",
+                text_color="#000000",
+                border_width=2,
+                border_color="#00FFAA",
+                corner_radius=12,
+                width=260,
+                height=36
+            ).pack(pady=5, padx=20, anchor="w")
 
     def _mostrar_historial_cargas_y_consultas(self):
         import tkinter as tk
@@ -4080,7 +4217,7 @@ class MainWindow:
             cal = None
 
         def exportar():
-            fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
+            fecha = cal.get_date().strftime('%Y-%m-d') if cal else None
             if not fecha:
                 messagebox.showerror("Error", "Selecciona una fecha válida.")
                 return
@@ -4178,17 +4315,42 @@ class MainWindow:
         self.clave_valor.configure(text=f"ITEM: {resultado.get('item', '')}")
         res = resultado.get('resultado', 'Sin resultado') or 'Sin resultado'
         self.resultado_valor.configure(text=f"RESULTADO: {res}")
-        # Mostrar motivo solo si es NO CUMPLE
+        # Motivo de no cumplimiento (debajo del resultado)
+        mostrar_motivo = False
         if res == 'NO CUMPLE':
-            item = resultado.get('item', '')
+            item = str(resultado.get('item', '')).strip()
             item_id_res = self.db_manager.execute_query("SELECT id FROM items WHERE item = %s", (item,))
             if item_id_res:
                 item_id = item_id_res[0]['id']
-                motivo = self.db_manager.execute_query("SELECT motivo FROM motivos_no_cumplimiento WHERE item_id = %s", (item_id,))
+                motivo = self.db_manager.execute_query(
+                    "SELECT motivo FROM motivos_no_cumplimiento WHERE item_id = %s",
+                    (item_id,)
+                )
                 if motivo and motivo[0].get('motivo'):
-                    self.nom_valor.configure(text=motivo[0]['motivo'])
-                    return
-        self.nom_valor.configure(text="")
+                    self.motivo_valor.configure(text=motivo[0]['motivo'], text_color="#FF3333")
+                    mostrar_motivo = True
+        if not mostrar_motivo:
+            self.motivo_valor.configure(text="")
+        # Mostrar NOMs solo si el campo de embarque tiene valor y no es el placeholder
+        embarque = self.embarque_var.get().strip()
+        if hasattr(self, '_placeholder_embarque') and embarque == self._placeholder_embarque:
+            embarque = ''
+        mostrar_nom = False
+        if embarque:
+            item = str(resultado.get('item', '')).strip()
+            embarque = str(embarque).strip()
+            noms = self.db_manager.execute_query(
+                "SELECT nom FROM item_nom_embarque WHERE item_id = %s AND embarque = %s",
+                (item, embarque)
+            )
+            if noms:
+                noms_validas = [n['nom'] for n in noms if n.get('nom') and n['nom'].strip().upper() != "SIN NORMA"]
+                if noms_validas:
+                    noms_text = '\n'.join(noms_validas)
+                    self.nom_valor.configure(text=noms_text, text_color="#55DDFF")
+                    mostrar_nom = True
+        if not mostrar_nom:
+            self.nom_valor.configure(text="")
     
     def _mostrar_no_encontrado(self):
         """Muestra mensaje de no encontrado"""
@@ -4288,7 +4450,7 @@ class MainWindow:
             text_color="#00FFAA"
         ).pack(pady=(0, 20))
         
-        # Botón para subir capturas pendientes (solo admin y captura) ANTES de los campos
+        # Botón para subir capturas pendientes 
         if self.rol in ["admin", "captura"]:
             self.subir_pendientes_btn = ct.CTkButton(
                 main_frame,
@@ -4699,6 +4861,28 @@ class MainWindow:
             width=260,
             height=36
         ).pack(pady=5, padx=20, anchor="w")
+
+        # Botón para cargar NOMs de embarque (solo admin o superadmin)
+        if self.rol in ("admin", "superadmin"):
+            from utils.carga_noms import cargar_noms_embarque
+            def cargar_noms():
+                try:
+                    cargar_noms_embarque(self.db_manager)
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error al cargar NOMs: {e}")
+            ct.CTkButton(
+                archivos_frame,
+                text="Cargar NOMs de Embarque",
+                command=cargar_noms,
+                font=("Segoe UI", 13, "bold"),
+                fg_color="#00FFAA",
+                text_color="#000000",
+                border_width=2,
+                border_color="#00FFAA",
+                corner_radius=12,
+                width=260,
+                height=36
+            ).pack(pady=5, padx=20, anchor="w")
 
 if __name__ == "__main__":
     app = EscanerApp()
