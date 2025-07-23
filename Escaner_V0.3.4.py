@@ -38,7 +38,7 @@ def cargar_diseño(path):
         return {}
 
 # Constantes de versión
-#VERSION_ACTUAL = "0.3.0"
+#VERSION_ACTUAL = "0.3.4"
 #FECHA_COMPILACION = "2025-01-28"
 
 # Configuración de logging
@@ -70,7 +70,7 @@ def safe_configure(widget, **kwargs):
 class EscanerApp:
     def __init__(self):
         self.root = ct.CTk()
-        self.root.title("Escáner V&C v0.3.2")
+        self.root.title("Escáner V&C v0.3.4")
         self.root.geometry("1000x800")
         self.root.resizable(True, True)
 
