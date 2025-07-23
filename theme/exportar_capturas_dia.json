@@ -1,6 +1,6 @@
-{
+ {
   "window": {
-    "title": "📅 Seleccionar Fecha para Reporte",
+    "title": "📤 Exportar Capturas del Día",
     "geometry": "500x500",
     "bg": "#FFFFFF"
   },
@@ -32,7 +32,7 @@
     "pack": { "pady": [8, 10] }
   },
   "button": {
-    "text": "📤 Exportar Reporte",
+    "text": "📤 Exportar Capturas",
     "font": ["Segoe UI", 13, "bold"],
     "bg": "#4CAF50",
     "fg": "#FFFFFF",
@@ -41,7 +41,7 @@
     "relief": "raised",
     "borderwidth": 2,
     "width": 20,
-    "height": 2,
+    "height": 1,
     "padx": 20,
     "pady": 10,
     "pack": {

@@ -133,5 +133,19 @@
       "padx": 10,
       "pady": 10
     }
+  },
+  "exportar_capturas_button": {
+    "text": "📤 Capturas del Día",
+    "font": ["Segoe UI", 14, "bold"],
+    "fg_color": "#4d4d4d",
+    "hover_color": "#1F6AA5",
+    "border_width": 0,
+    "border_color": "#4d4d4d",
+    "text_color": "#d8d8d8",
+    "corner_radius": 10,
+    "width": 180,
+    "height": 40,
+    "pack": {
+      "pady": [10, 10]}
   }
 }

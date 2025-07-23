@@ -262,9 +262,6 @@ class EscanerApp:
         """Ejecuta la aplicación"""
         self.root.mainloop()
 
-
-
-
 class LoginWindow:
     def __init__(self, master, usuario_model, logger, on_success):
         self.master = master
@@ -474,9 +471,6 @@ class LoginWindow:
         except:
             pass  # Widget ya destruido
 
-
-
-
 class MainWindow:
     def __init__(self, master, usuario, rol, codigo_model, captura_model, logger, config_data, usuario_model, db_manager):
         self.master = master
@@ -506,6 +500,7 @@ class MainWindow:
                 messagebox.showerror("Error", f"Error al crear la interfaz principal: {str(e)}")
             except:
                 print(f"Error al crear la interfaz principal: {str(e)}")
+    # Crear interfaz principal del escaner
 
     def crear_interfaz(self):
         try:
@@ -532,6 +527,7 @@ class MainWindow:
         except Exception as e:
             self.logger.error(f"Error creando interfaz: {str(e)}")
             raise e
+    # Crear interfaz específica para superadmin
 
     def _crear_interfaz_superadmin(self):
         """Crea la interfaz específica para superadmin"""
@@ -552,6 +548,7 @@ class MainWindow:
             except:
                 print(f"Error creando interfaz superadmin: {str(e)}")
             raise e
+    # Crear interfaz normal para otros usuarios
 
     def _crear_interfaz_normal(self):
         """Crea la interfaz normal para otros usuarios"""
@@ -920,7 +917,8 @@ class MainWindow:
         self._crear_estadisticas_escaner(right_col)
 
         self._crear_botones_adicionales(right_col)
-
+    
+    # Crear header (barra latera izquierda con logo y título)
     def _crear_header(self, parent):
         diseño = cargar_diseño("theme/header.json")
 
@@ -1119,6 +1117,7 @@ class MainWindow:
             self.master.after(0, lambda: self._restaurar_boton_busqueda())
 
     def _crear_estadisticas_escaner(self, parent):
+        """Crea las estadísticas del escáner"""
         diseño = cargar_diseño("theme/tab_escaner.json")
         stats_conf = diseño["estadisticas_labels"]
 
@@ -1161,11 +1160,13 @@ class MainWindow:
             fg_color=stats_conf["fg_color"]
         )
         self.ultima_actualizacion_label.pack(pady=stats_conf["pady_ultima"])
-
+            
+    # Crear botones adicionales (botones de logout, historial, exportar reporte y capturas)
     def _crear_botones_adicionales(self, parent):
+        """Crea los botones adicionales (logout, historial, exportar reporte, exportar capturas)"""
         diseño = cargar_diseño("theme/tab_escaner.json")
 
-        # Contenedor vertical (debajo de estadísticas)
+        # Contenedor de botones
         botonera_frame = ct.CTkFrame(parent, fg_color="#FFFFFF")
         botonera_frame.pack(side="top", anchor="ne", pady=(30, 10), padx=10)
 
@@ -1185,7 +1186,7 @@ class MainWindow:
         )
         self.logout_button.pack(**logout_conf["pack"])
 
-        # Botón Ver Historial
+        # Botón Historial
         historial_conf = diseño["historial_button"]
         self.historial_button = ct.CTkButton(
             botonera_frame,
@@ -1201,21 +1202,40 @@ class MainWindow:
         )
         self.historial_button.pack(**historial_conf["pack"])
 
-        # Botón Exportar Reporte
-        exportar_conf = diseño["exportar_reporte_button"]
-        self.exportar_button = ct.CTkButton(
+        # Botón Exportar Reporte (solo admin)
+        if self.rol == "admin":
+            exportar_conf = diseño["exportar_reporte_button"]
+            self.exportar_button = ct.CTkButton(
+                botonera_frame,
+                text=exportar_conf["text"],
+                font=tuple(exportar_conf["font"]),
+                fg_color=exportar_conf["fg_color"],
+                hover_color=exportar_conf["hover_color"],
+                text_color=exportar_conf["text_color"],
+                width=exportar_conf["width"],
+                height=exportar_conf["height"],
+                corner_radius=exportar_conf["corner_radius"],
+                command=self.exportar_reporte_dia
+            )
+            self.exportar_button.pack(**exportar_conf["pack"])
+
+        # Botón Exportar Capturas (para todos)
+        capturas_conf = diseño["exportar_capturas_button"]
+        self.exportar_capturas_button = ct.CTkButton(
             botonera_frame,
-            text=exportar_conf["text"],
-            font=tuple(exportar_conf["font"]),
-            fg_color=exportar_conf["fg_color"],
-            hover_color=exportar_conf["hover_color"],
-            text_color=exportar_conf["text_color"],
-            width=exportar_conf["width"],
-            height=exportar_conf["height"],
-            corner_radius=exportar_conf["corner_radius"],
-            command=self.exportar_reporte_dia
+            text=capturas_conf["text"],
+            font=tuple(capturas_conf["font"]),
+            fg_color=capturas_conf["fg_color"],
+            hover_color=capturas_conf["hover_color"],
+            text_color=capturas_conf["text_color"],
+            border_color=capturas_conf["border_color"],
+            border_width=capturas_conf["border_width"],
+            width=capturas_conf["width"],
+            height=capturas_conf["height"],
+            corner_radius=capturas_conf["corner_radius"],
+            command=self.exportar_capturas_dia
         )
-        self.exportar_button.pack(**exportar_conf["pack"])  
+        self.exportar_capturas_button.pack(**capturas_conf["pack"])
 
     def _guardar_captura_offline(self, codigo, item, motivo, cumple):
         """Guarda la captura localmente en un archivo JSON por usuario"""
@@ -1285,8 +1305,7 @@ class MainWindow:
                     args=(codigo_limpio,),
                     daemon=True
                 ).start()
-
-    
+   
     def mostrar_historial_cargas_y_consultas(self):
         import tkinter as tk
         from tkinter import ttk, messagebox, filedialog
@@ -1540,8 +1559,6 @@ class MainWindow:
                                             height=exportar_reporte_cfg["height"],
                                             command=self.exportar_reporte_funcion)  # <- tu lógica aquí
         exportar_reporte_btn.pack(pady=exportar_reporte_cfg["pack"].get("pady", (0, 10)))
-
-
 
     def _crear_formulario_usuario(self, parent, side="left"):
         diseño = cargar_diseño_formulario("theme/formulario_usuario.json")
@@ -2530,7 +2547,8 @@ class MainWindow:
                     state="disabled",
                     text="No hay capturas pendientes"
                 )
-
+  
+    #Ventana para configurar la carga de archivos CLP
     def _configurar_tab_configuracion(self, parent):
         diseño = cargar_diseño("theme/tab_configuracion.json")
 
@@ -2628,6 +2646,7 @@ class MainWindow:
             height=btn_cargar_conf["height"]
         ).pack(**btn_cargar_conf["pack"])
 
+    #Ventana para exportar reporte de consultas del día
     def exportar_reporte_dia(self):
         import tkinter as tk
         from tkinter import messagebox, filedialog
@@ -2728,6 +2747,106 @@ class MainWindow:
         )
         export_btn.pack(**btn_conf["pack"])
 
+    #Ventana para exportar capturas del día
+    def exportar_capturas_dia(self):
+        import tkinter as tk
+        from tkinter import filedialog, messagebox
+        from tkcalendar import DateEntry
+        import pandas as pd
+
+        diseño = cargar_diseño("theme/exportar_capturas_dia.json")
+
+        # Ventana principal
+        top = tk.Toplevel(self.master)
+        top.title(diseño["window"]["title"])
+        top.geometry(diseño["window"]["geometry"])
+        top.configure(bg=diseño["window"]["bg"])
+
+        # Etiqueta
+        label_conf = diseño["label"]
+        label = tk.Label(
+            top,
+            text=label_conf["text"],
+            font=tuple(label_conf["font"]),
+            fg=label_conf["fg"],
+            bg=label_conf["bg"]
+        )
+        label.pack(**label_conf["pack"])
+
+        # Calendario o advertencia
+        if DateEntry:
+            cal_conf = diseño["calendar"]
+            cal = DateEntry(
+                top,
+                width=cal_conf["width"],
+                background=cal_conf["background"],
+                foreground=cal_conf["foreground"],
+                borderwidth=cal_conf["borderwidth"],
+                date_pattern=cal_conf["date_pattern"],
+                font=tuple(cal_conf["font"]),
+                headersbackground=cal_conf["headersbackground"],
+                headersforeground=cal_conf["headersforeground"],
+                selectbackground=cal_conf["selectbackground"],
+                selectforeground=cal_conf["selectforeground"]
+            )
+            cal.pack(**cal_conf["pack"])
+        else:
+            warn_conf = diseño["label_warning"]
+            tk.Label(
+                top,
+                text=warn_conf["text"],
+                fg=warn_conf["fg"],
+                bg=warn_conf["bg"],
+                font=tuple(warn_conf["font"])
+            ).pack(**warn_conf["pack"])
+            cal = None
+
+        # Acción exportar
+        def exportar():
+            fecha = cal.get_date().strftime('%Y-%m-%d') if cal else None
+            if not fecha:
+                messagebox.showerror("Error", "Selecciona una fecha válida.")
+                return
+            try:
+                query = "SELECT fecha, usuario, codigo, item, cumple, motivo FROM capturas WHERE fecha::date = %s ORDER BY fecha DESC"
+                capturas = self.db_manager.execute_query(query, (fecha,))
+            except Exception:
+                capturas = []
+            if not capturas:
+                messagebox.showinfo("Sin datos", f"No hay capturas para el día {fecha}")
+                return
+            df = pd.DataFrame(capturas)
+            ruta = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Archivos Excel", "*.xlsx")],
+                initialfile=f"capturas_{fecha}.xlsx",
+                title="Guardar capturas como..."
+            )
+            if not ruta:
+                return
+            df.to_excel(ruta, index=False)
+            messagebox.showinfo("Éxito", f"Capturas exportadas: {ruta}")
+            top.destroy()
+
+        # Botón exportar
+        btn_conf = diseño["button"]
+        export_btn = tk.Button(
+            top,
+            text=btn_conf["text"],
+            command=exportar,
+            font=tuple(btn_conf["font"]),
+            bg=btn_conf["bg"],
+            fg=btn_conf["fg"],
+            activebackground=btn_conf["activebackground"],
+            activeforeground=btn_conf["activeforeground"],
+            relief=btn_conf["relief"],
+            borderwidth=btn_conf["borderwidth"],
+            width=btn_conf["width"],
+            height=btn_conf["height"],
+            padx=btn_conf["padx"],
+            pady=btn_conf["pady"]
+        )
+        export_btn.pack(**btn_conf["pack"])
 
     # Botón cerrar sesión (logout)
     def cerrar_sesion(self):
@@ -2739,7 +2858,6 @@ class MainWindow:
             app.ejecutar()
         except Exception as e:
             print(f"Error al cerrar sesión: {str(e)}")
-
 
 if __name__ == "__main__":
     app = EscanerApp()
