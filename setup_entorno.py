@@ -71,7 +71,7 @@ def crear_entorno_virtual():
     else:  # Linux/Mac
         print(f"  source {venv_dir}/bin/activate")
     print("\nPara ejecutar la aplicación:")
-    print(f"  {python_path} Escaner_V0.3.2.py")
+    print(f"  {python_path} Escaner_V0.3.3.py")
 
 if __name__ == "__main__":
     crear_entorno_virtual() 

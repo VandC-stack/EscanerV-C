@@ -1,0 +1,94 @@
+{
+  "form_frame": {
+    "fg_color": "#111111",
+    "pack": {
+      "side": "left",
+      "fill": "both",
+      "expand": true,
+      "padx": [0, 10]
+    }
+  },
+  "title_label": {
+    "text": "Crear/Editar Usuario",
+    "font": ["Segoe UI", 16, "bold"],
+    "text_color": "#00FFAA",
+    "pack": {
+      "pady": [20, 20]
+    }
+  },
+  "campos": {
+    "usuario": {
+      "label": {
+        "text": "Usuario:",
+        "text_color": "#00FFAA",
+        "pack": {"anchor": "w", "padx": 20, "pady": [0, 5]}
+      },
+      "entry": {
+        "width": 300,
+        "height": 32,
+        "pack": {"padx": 20, "pady": [0, 15]}
+      }
+    },
+    "password": {
+      "label": {
+        "text": "Contraseña:",
+        "text_color": "#00FFAA",
+        "pack": {"anchor": "w", "padx": 20, "pady": [0, 5]}
+      },
+      "entry": {
+        "show": "*",
+        "width": 300,
+        "height": 32,
+        "pack": {"padx": 20, "pady": [0, 15]}
+      }
+    },
+    "rol": {
+      "label": {
+        "text": "Rol:",
+        "text_color": "#00FFAA",
+        "pack": {"anchor": "w", "padx": 20, "pady": [0, 5]}
+      },
+      "optionmenu": {
+        "values": ["usuario", "captura", "admin", "superadmin"],
+        "width": 300,
+        "height": 32,
+        "pack": {"padx": 20, "pady": [0, 15]}
+      }
+    },
+    "activo": {
+      "label": {
+        "text": "Estado:",
+        "text_color": "#00FFAA",
+        "pack": {"anchor": "w", "padx": 20, "pady": [0, 5]}
+      },
+      "optionmenu": {
+        "values": ["activo", "inactivo"],
+        "width": 300,
+        "height": 32,
+        "pack": {"padx": 20, "pady": [0, 20]}
+      }
+    }
+  },
+  "buttons_frame": {
+    "fg_color": "#111111",
+    "pack": {"pady": [0, 20]}
+  },
+  "buttons": {
+    "crear_usuario": {
+      "text": "Crear Usuario",
+      "fg_color": "#00FFAA",
+      "text_color": "#000000",
+      "width": 120,
+      "height": 32,
+      "pack": {"side": "left", "padx": 5}
+    },
+    "limpiar": {
+      "text": "Limpiar",
+      "fg_color": "#FF3333",
+      "text_color": "#FFFFFF",
+      "width": 120,
+      "height": 32,
+      "pack": {"side": "left", "padx": 5}
+    }
+  }
+}

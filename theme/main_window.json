@@ -1,0 +1,23 @@
+{
+  "tabview": {
+    "fg_color": "#FFFFFF",
+    "padx": 0,
+    "pady": 0
+  },
+  "gestion_usuarios": {
+    "main_frame": {
+      "fg_color": "#FFFFFF",
+      "padx": 40,
+      "pady": 40
+    },
+    "label": {
+      "text": "Gestión de Usuarios",
+      "font": ["Segoe UI", 18, "bold"],
+      "text_color": "#d8d8d8",
+      "pady": [0, 20]
+    },
+    "content_frame": {
+      "fg_color": "#FFFFFF"
+    }
+  }
+}
