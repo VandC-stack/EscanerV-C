@@ -1,0 +1,110 @@
+ {
+  "main_frame": {
+    "fg_color": "#FFFFFF",
+    "width": 800,
+    "height": 600,
+    "padx": 30,
+    "pady": 30
+  },
+  "labels": {
+    "titulo": {
+      "text": "📝 Captura de Cumplimientos",
+      "font": ["Segoe UI", 18, "bold"],
+      "text_color": "#282828",
+      "pady": [0, 25],
+      "anchor": "center"
+    },
+    "codigo_barras": {
+      "text": "🔍 Código de barras:",
+      "font": ["Segoe UI", 13, "bold"],
+      "text_color": "#282828",
+      "padx": 10,
+      "pady": [15, 5],
+      "anchor": "w"
+    },
+    "item": {
+      "text": "📦 Item:",
+      "font": ["Segoe UI", 13, "bold"],
+      "text_color": "#282828",
+      "padx": 10,
+      "pady": [15, 5],
+      "anchor": "w"
+    },
+    "cumple": {
+      "text": "✅ ¿Cumple?",
+      "font": ["Segoe UI", 13, "bold"],
+      "text_color": "#282828",
+      "padx": 10,
+      "pady": [0, 5],
+      "anchor": "w"
+    },
+    "motivo": {
+      "text": "📝 Motivo:",
+      "font": ["Segoe UI", 13, "bold"],
+      "text_color": "#282828",
+      "padx": 10,
+      "pady": [0, 5],
+      "anchor": "w"
+    }
+  },
+  "buttons": {
+    "subir_pendientes": {
+      "text": "Subir capturas pendientes",
+      "font": ["Segoe UI", 12, "bold"],
+      "fg_color": "#282828",
+      "text_color": "#d8d8d8",
+      "border_width": 2,
+      "border_color": "#282828",
+      "corner_radius": 10,
+      "pady": [10, 15],
+      "padx": 20
+    },
+    "guardar": {
+      "text": "Guardar",
+      "font": ["Segoe UI", 12, "bold"],
+      "fg_color": "#282828",
+      "text_color": "#d8d8d8",
+      "border_width": 2,
+      "border_color": "#282828",
+      "corner_radius": 10,
+      "pady": [10, 0],
+      "padx": 20
+    }
+  },
+  "entries": {
+    "width": 400,
+    "height": 36,
+    "corner_radius": 6,
+    "border_width": 2,
+    "border_color": "#00FFAA",
+    "fg_color": "#FFFFFF",
+    "text_color": "#282828",
+    "font": ["Segoe UI", 13]
+  },
+  "optionmenu": {
+    "width": 300,
+    "height": 36,
+    "fg_color": "#FFFFFF",
+    "text_color": "#282828",
+    "font": ["Segoe UI", 13],
+    "pack": {
+      "side": "left",
+      "padx": 10,
+      "pady": 0
+    }
+  },
+  "frame": {
+    "fg_color": "#FFFFFF",
+    "fill_x": true,
+    "pady_campos": [0, 20],
+    "pady_motivo_guardar": [0, 10]
+  },
+  "row_cumple_motivo": {
+    "fg_color": "#FFFFFF",
+    "pack": {
+      "fill": "x",
+      "padx": 10,
+      "pady": [25, 25]
+    }
+  }
+}

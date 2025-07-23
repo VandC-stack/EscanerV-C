@@ -1,0 +1,91 @@
+{
+  "scroll_frame": {
+    "fg_color": "#FFFFFF",
+    "width": 800,
+    "height": 600,
+    "pack": {
+      "fill": "both",
+      "expand": true,
+      "padx": 20,
+      "pady": 20
+    }
+  },
+  "label_title": {
+    "text": "Revisión de Capturas",
+    "font": ["Segoe UI", 18, "bold"],
+    "text_color": "#00FFAA",
+    "pack": {
+      "pady": [0, 20]
+    }
+  },
+  "label_empty": {
+    "text": "No hay capturas para revisar.",
+    "font": ["Segoe UI", 14, "italic"],
+    "text_color": "#FF5555",
+    "pack": {
+      "pady": [10, 10]
+    }
+  },
+  "treeview_style": {
+    "background": "#111111",
+    "foreground": "#00FFAA",
+    "rowheight": 25,
+    "fieldbackground": "#111111",
+    "font": ["Segoe UI", 11],
+    "heading_background": "#00FFAA",
+    "heading_foreground": "#000000",
+    "heading_font": ["Segoe UI", 13, "bold"],
+    "selected_background": "#222222"
+  },
+  "treeview": {
+    "show": "headings",
+    "height": 15,
+    "selectmode": "extended",
+    "pack": {
+      "fill": "both",
+      "expand": true
+    }
+  },
+  "label_select_instruction": {
+    "text": "Selecciona las capturas para aceptar o denegar.",
+    "text_color": "#00FFAA",
+    "pack": {
+      "pady": [10, 10]
+    }
+  },
+  "buttons_frame": {
+    "fg_color": "#000000",
+    "pack": {
+      "fill": "x",
+      "pady": [10, 0]
+    }
+  },
+  "button_aceptar": {
+    "text": "Aceptar",
+    "fg_color": "#00FFAA",
+    "text_color": "#000000",
+    "font": ["Segoe UI", 13, "bold"],
+    "border_width": 2,
+    "border_color": "#00FFAA",
+    "corner_radius": 12,
+    "pack": {
+      "side": "left",
+      "padx": 10,
+      "pady": 10
+    }
+  },
+  "button_denegar": {
+    "text": "Denegar",
+    "fg_color": "#FF3333",
+    "text_color": "#FFFFFF",
+    "font": ["Segoe UI", 13, "bold"],
+    "border_width": 2,
+    "border_color": "#FF3333",
+    "corner_radius": 12,
+    "pack": {
+      "side": "left",
+      "padx": 10,
+      "pady": 10
+    }
+  }
+}

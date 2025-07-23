@@ -1,0 +1,155 @@
+ {
+  "window": {
+    "title": "Historial del Día",
+    "geometry": "500x700",
+    "fg_color": "#F5F7FA"
+  },
+  "main_frame": {
+    "fg_color": "#FFFFFF",
+    "pack": {
+      "fill": "both",
+      "expand": true,
+      "padx": 10,
+      "pady": 10
+    }
+  },
+  "filtro_frame": {
+    "fg_color": "#E1E8F0",
+    "pack": {
+      "fill": "x",
+      "pady": [0, 10],
+      "padx": 0
+    }
+  },
+  "labels": {
+    "filtro": {
+      "text": "🔍 Archivo:",
+      "text_color": "#2C3E50",
+      "font": ["Segoe UI", 11, "bold"],
+      "padx": [0, 10],
+      "anchor": "w",
+      "pack": {"side": "left"}
+    },
+    "cargas": {
+      "text": "📂 Cargas del Día",
+      "font": ["Segoe UI", 14, "bold"],
+      "text_color": "#34495E",
+      "fg_color": "#FFFFFF",
+      "padx": 5,
+      "pady": [5, 6],
+      "anchor": "w",
+      "pack": {"anchor": "w", "pady": [0, 6]}
+    },
+    "consultas": {
+      "text": "🔎 Consultas",
+      "font": ["Segoe UI", 14, "bold"],
+      "text_color": "#34495E",
+      "fg_color": "#FFFFFF",
+      "padx": 5,
+      "pady": [5, 6],
+      "anchor": "w",
+      "pack": {"anchor": "w", "pady": [8, 6]}
+    },
+    "capturas": {
+      "text": "📸 Capturas",
+      "font": ["Segoe UI", 14, "bold"],
+      "text_color": "#34495E",
+      "fg_color": "#FFFFFF",
+      "padx": 0,
+      "pady": [5, 6],
+      "anchor": "w",
+      "pack": {"anchor": "w", "pady": [8, 6]}
+    }
+  },
+  "entry": {
+    "width": 160,
+    "height": 28,
+    "corner_radius": 8,
+    "border_width": 1,
+    "border_color": "#2980B9",
+    "fg_color": "#FFFFFF",
+    "text_color": "#2C3E50",
+    "font": ["Segoe UI", 11],
+    "pack": {"side": "left"}
+  },
+  "textbox": {
+    "width": 440,
+    "height": 60,
+    "fg_color": "#ECF0F1",
+    "text_color": "#2C3E50",
+    "font": ["Segoe UI", 11],
+    "corner_radius": 10,
+    "border_width": 1,
+    "border_color": "#2980B9",
+    "pack": {"pady": [0, 10]}
+  },
+  "botones": {
+    "cerrar": {
+      "text": "❌ Cerrar",
+      "fg_color": "#E74C3C",
+      "text_color": "#FFFFFF",
+      "hover_color": "#C0392B",
+      "pressed_color": "#922B21",
+      "font": ["Segoe UI", 13, "bold"],
+      "corner_radius": 12,
+      "width": 180,
+      "height": 36,
+      "border_width": 0,
+      "pack": {"pady": 10}
+    }
+  },
+  "tablas": {
+    "treeview_consultas": {
+      "background": "#FFFFFF",
+      "columns": ["Fecha", "Usuario", "Código", "Resultado"],
+      "rowheight": 24,
+      "font": ["Segoe UI", 10],
+      "foreground": "#2C3E50",
+      "fieldbackground": "#F8F9F9",
+      "bordercolor": "#2980B9",
+      "borderwidth": 1,
+      "heading": {
+        "background": "#2980B9",
+        "foreground": "#FFFFFF",
+        "font": ["Segoe UI", 11, "bold"],
+        "relief": "flat"
+      },
+      "evenrow": "#ECF0F1",
+      "oddrow": "#FFFFFF",
+      "selected_bg": "#85C1E9",
+      "columns_width": {
+        "Fecha": 100,
+        "Usuario": 90,
+        "Código": 120,
+        "Resultado": 110
+      }
+    },
+    "treeview_capturas": {
+      "columns": ["Fecha", "Usuario", "Código", "Item", "Resultado", "Motivo"],
+      "rowheight": 24,
+      "font": ["Segoe UI", 10],
+      "background": "#FFFFFF",
+      "foreground": "#2C3E50",
+      "fieldbackground": "#F8F9F9",
+      "bordercolor": "#2980B9",
+      "borderwidth": 1,
+      "heading": {
+        "background": "#2980B9",
+        "foreground": "#FFFFFF",
+        "font": ["Segoe UI", 11, "bold"],
+        "relief": "flat"
+      },
+      "evenrow": "#ECF0F1",
+      "oddrow": "#FFFFFF",
+      "selected_bg": "#85C1E9",
+      "columns_width": {
+        "Fecha": 90,
+        "Usuario": 70,
+        "Código": 90,
+        "Item": 70,
+        "Resultado": 90,
+        "Motivo": 90
+      }
+    }
+  }
+}
