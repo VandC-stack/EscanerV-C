@@ -2165,7 +2165,7 @@ class MainWindow:
         )
         restore_btn.pack(pady=10)
 
-        # (Opcional) Aquí se puede agregar una tabla de historial de backups en el futuro
+        # (Opcional) Se puede agregar una tabla de historial de backups en el futuro o no, no sé 
 
     def mostrar_configuracion(self):
         self.limpiar_panel_contenido()
@@ -2457,8 +2457,8 @@ class MainWindow:
             action_frame,
             text="Refrescar",
             command=self.cargar_items,
-            fg_color="#00AAFF",
-            text_color="#FFFFFF",
+            fg_color="#000000",
+            text_color="#00FFAA",
             width=120,
             height=32
         ).pack(side="left", padx=5)
@@ -2564,8 +2564,8 @@ class MainWindow:
             action_frame,
             text="Refrescar",
             command=self.cargar_usuarios,
-            fg_color="#00AAFF",
-            text_color="#FFFFFF",
+            fg_color="#00FFAA",
+            text_color="#000000",
             width=120,
             height=32
         ).pack(side="left", padx=5)
