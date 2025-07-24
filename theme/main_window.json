@@ -18,6 +18,18 @@
     },
     "content_frame": {
       "fg_color": "#FFFFFF"
-    }
+    },
+      "superadmin": {
+    "main_bg": "#000000",
+    "menu_bg": "#111111",
+    "content_bg": "#000000",
+    "btn_fg": "#00FFAA",
+    "btn_text": "#000000",
+    "btn_hover": "#55DDFF",
+    "btn_exit_fg": "#FF3333",
+    "btn_exit_text": "#FFFFFF",
+    "btn_exit_hover": "#FF6666",
+    "btn_font": ["Segoe UI", 13, "bold"]
+   }
   }
 }
