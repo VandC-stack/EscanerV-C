@@ -745,7 +745,7 @@ class EscanerApp:
             messagebox.showerror("Error", f"Error al actualizar índice: {str(e)}")
     
     def _configurar_tab_captura(self, parent):
-        # Scrollable frame principal con mejor configuración
+        # Scrollable frame principal 
         main_frame = ct.CTkScrollableFrame(parent, fg_color="#000000", width=800, height=600)
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
@@ -757,7 +757,7 @@ class EscanerApp:
             text_color="#00FFAA"
         ).pack(pady=(0, 20))
         
-        # Botón para subir capturas pendientes (solo admin y captura) ANTES de los campos
+        # Botón para subir capturas pendientes (solo admin y captura) 
         if self.rol in ["admin", "captura"]:
             self.subir_pendientes_btn = ct.CTkButton(
                 main_frame,
@@ -1627,7 +1627,7 @@ class MainWindow:
         if self.rol == "admin":
             self.tabview.add("Configuración")
             self._configurar_tab_configuracion(self.tabview.tab("Configuración"))
-        # Aquí puedes agregar más pestañas según el rol
+        # Aquí podría agregar más pestañas según el rol
         # self.tabview.add("Otra sección")
         # self._configurar_tab_otra(self.tabview.tab("Otra sección"))
         # Establecer pestaña inicial
